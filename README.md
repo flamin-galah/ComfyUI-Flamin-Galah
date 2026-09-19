@@ -1,4 +1,4 @@
-# 🦩 Flamin Galah NSFW Prompt Generator
+# Flamin Galah NSFW Prompt Generator
 
 Structured filmmaker-style fields → local Ollama → official MiniMax H3 prompt.
 
@@ -15,7 +15,7 @@ non_diegetic_music: ...
 ## Setup
 
 1. Ollama running (`http://localhost:11434`)
-2. `ollama pull llama3.2` (or another model)
+2. `ollama pull dolphin-llama3` (or another uncensored model)
 3. Copy folder into `ComfyUI/custom_nodes/` and fully restart ComfyUI
 4. Delete any old Flamin Galah node from your graph, then add a fresh one
 
