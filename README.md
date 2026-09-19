@@ -4,8 +4,6 @@
 
 Structured filmmaker-style fields → local Ollama → official MiniMax H3 prompt.
 
-**No free-form idea box** — fill action, camera, style, lighting, etc.
-
 ## Format
 
 ```
