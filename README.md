@@ -1,5 +1,7 @@
 # Flamin Galah NSFW Prompt Generator
 
+<img src='https://i.postimg.cc/pmWWSttG/flamin-galah-logo.png' border='0' alt='flamin-galah-logo'>
+
 Structured filmmaker-style fields → local Ollama → official MiniMax H3 prompt.
 
 **No free-form idea box** — fill action, camera, style, lighting, etc.
