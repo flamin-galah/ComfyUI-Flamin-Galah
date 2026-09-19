@@ -23,11 +23,7 @@ non_diegetic_music: ...
 
 ## Main inputs
 
-- action, camera, style, lighting
+- Prompt idea, camera, style, lighting
 - duration, dialogue, soundscape, music, extra_details
 - ollama_model (dropdown from Ollama)
-- optional: ollama_url, temperature, shot_2_action, negative_notes
-
-## License
-
-MIT
+- optional: ollama_url, temperature, dialogue, soundscape, music, LoRA trigger words
