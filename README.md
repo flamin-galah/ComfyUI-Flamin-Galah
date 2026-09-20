@@ -19,7 +19,7 @@ non_diegetic_music: ...
 #### Setup
 
 1. Ollama running (`http://localhost:11434`)
-2. `ollama pull fluffy/l3-8b-stheno-v3.2` (or another uncensored model however results do vary)
+2. `ollama run jimscard/adult-film-screenwriter-nsfw` (or another uncensored model however results do vary)
 3. Copy folder into `ComfyUI/custom_nodes/` and fully restart ComfyUI
 4. Delete any old Flamin Galah node from your workflow, then add a fresh one
 
@@ -32,5 +32,4 @@ non_diegetic_music: ...
 
 #### Notes
 
-`ollama pull fluffy/l3-8b-stheno-v3.2` works well https://ollama.com/fluffy/l3-8b-stheno-v3.2
-`ollama run jimscard/adult-film-screenwriter-nsfw`
+`ollama pull fluffy/l3-8b-stheno-v3.2` also works well https://ollama.com/fluffy/l3-8b-stheno-v3.2
