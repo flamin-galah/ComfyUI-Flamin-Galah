@@ -101,6 +101,7 @@ class FlaminGalahNSFWPromptGenerator:
 
                 "action": ("STRING", {
                     "multiline": True,
+                    "rows": 10,
                     "default": (
                         "A woman, slim body, huge firm breasts, "
                         "sitting on a chair in an office, "
@@ -124,7 +125,7 @@ class FlaminGalahNSFWPromptGenerator:
                     "intimate close-up",
                     "slow tilt up the body",
                 ], {
-                    "default": "intimate close-up"
+                    "default": "static wide shot"
                 }),
 
                 "style": ([
@@ -153,7 +154,7 @@ class FlaminGalahNSFWPromptGenerator:
                     "volumetric fog and shafts of light",
                     "intimate rim lighting",
                 ], {
-                    "default": "volumetric fog and shafts of light"
+                    "default": "high-contrast dramatic"
                 }),
 
                 "duration_seconds": ("INT", {
