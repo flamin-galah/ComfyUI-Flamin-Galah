@@ -2,6 +2,8 @@
 
 # ComfyUI Flamin Galah
 
+## NSFW Prompt Generator using Ollama
+
 Structured filmmaker-style fields → local Ollama → official MiniMax H3 prompt.
 
 ## Format
