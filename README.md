@@ -1,6 +1,6 @@
 <img src='https://i.postimg.cc/pmWWSttG/flamin-galah-logo.png' border='0' alt='flamin-galah-logo'>
 
-# Flamin Galah NSFW Prompt Generator
+# ComfyUI Flamin Galah
 
 Structured filmmaker-style fields → local Ollama → official MiniMax H3 prompt.
 
