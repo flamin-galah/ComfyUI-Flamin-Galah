@@ -25,3 +25,7 @@ non_diegetic_music: ...
 - duration, dialogue, soundscape, music, extra_details
 - ollama_model (dropdown from Ollama)
 - optional: ollama_url, temperature, dialogue, soundscape, music, LoRA trigger words
+
+## Notes
+
+`ollama pull fluffy/l3-8b-stheno-v3.2` works well https://ollama.com/fluffy/l3-8b-stheno-v3.2
