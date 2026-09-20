@@ -101,11 +101,11 @@ class FlaminGalahNSFWPromptGenerator:
 
                 "action": ("STRING", {
                     "multiline": True,
-                    "rows": 10,
+                    "rows": 6,
                     "default": (
                         "A woman, slim body, huge firm breasts, "
                         "sitting on a chair in an office, "
-                        "legs open wide,she looks directly at the "
+                        "legs open wide, she looks directly at the "
                         "camera with a seductive expression"
                     )
                 }),
