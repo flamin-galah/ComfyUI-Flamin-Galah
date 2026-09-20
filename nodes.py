@@ -102,9 +102,9 @@ class FlaminGalahNSFWPromptGenerator:
                 "action": ("STRING", {
                     "multiline": True,
                     "default": (
-                        "A nun, slim body, huge firm breasts, "
-                        "she slowly removes her tunic letting it slide "
-                        "down her shoulders as she looks directly at the "
+                        "A woman, slim body, huge firm breasts, "
+                        "sitting on a chair in an office, "
+                        "legs open wide,she looks directly at the "
                         "camera with a seductive expression"
                     )
                 }),
@@ -124,7 +124,7 @@ class FlaminGalahNSFWPromptGenerator:
                     "intimate close-up",
                     "slow tilt up the body",
                 ], {
-                    "default": "static wide shot"
+                    "default": "intimate close-up"
                 }),
 
                 "style": ([
@@ -139,7 +139,7 @@ class FlaminGalahNSFWPromptGenerator:
                     "documentary style",
                     "music video",
                 ], {
-                    "default": "live-action cinematic"
+                    "default": "photorealistic"
                 }),
 
                 "lighting": ([
