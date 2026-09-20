@@ -153,7 +153,7 @@ class FlaminGalahNSFWPromptGenerator:
                     "volumetric fog and shafts of light",
                     "intimate rim lighting",
                 ], {
-                    "default": "soft red practical lights"
+                    "default": "volumetric fog and shafts of light"
                 }),
 
                 "duration_seconds": ("INT", {
