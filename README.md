@@ -8,6 +8,8 @@ Structured filmmaker-style fields → local Ollama → official MiniMax H3 promp
 
 <img src='https://i.postimg.cc/s1w75qvc/Screenshot-2026-09-20-185451.png' border='0' alt='NSFW Prompt Generator using Ollama'>
 
+<img src='https://i.postimg.cc/s1w75qvc/Screenshot-2026-09-20-185451.png' border='0' alt='NSFW Prompt Generator using Ollama'>
+
 #### Format
 
 ```
