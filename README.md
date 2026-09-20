@@ -15,7 +15,7 @@ non_diegetic_music: ...
 ## Setup
 
 1. Ollama running (`http://localhost:11434`)
-2. `ollama pull dolphin-llama3` (or another uncensored model)
+2. `ollama pull fluffy/l3-8b-stheno-v3.2` (or another uncensored model however results do vary)
 3. Copy folder into `ComfyUI/custom_nodes/` and fully restart ComfyUI
 4. Delete any old Flamin Galah node from your workflow, then add a fresh one
 
