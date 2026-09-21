@@ -1,9 +1,16 @@
 """
 ComfyUI custom node: Flamin Galah NSFW Prompt Generator
-Builds structured MiniMax H3 T2VA prompts via local Ollama from
+Builds structured MiniMax H3 T2VA / I2VA prompts via local Ollama from
 filmmaker-style fields (no free-form idea box).
 
-Official format:
+Official format (T2VA):
+  integrated_multimodal_description: [Shot 1] ...
+  overall_soundscape: ...
+  non_diegetic_music: ...
+
+Official format (I2VA):
+  For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced.
+
   integrated_multimodal_description: [Shot 1] ...
   overall_soundscape: ...
   non_diegetic_music: ...
@@ -13,14 +20,25 @@ import json
 import urllib.request
 import urllib.error
 import re
+import base64
+import io
+
+try:
+    import torch
+    import numpy as np
+    from PIL import Image
+except ImportError:
+    torch = None
+    np = None
+    Image = None
 
 
-OLLAMA_SYSTEM_PROMPT = """You are an expert prompt writer for MiniMax H3 video generation.
-Your job is to turn structured creative guidance into a complete MiniMax H3 text-to-video prompt.
+OLLAMA_SYSTEM_PROMPT_T2VA = """You are an expert prompt writer for MiniMax H3 video generation.
+Your job is to turn structured creative guidance into a complete MiniMax H3 text-to-video (T2VA) prompt.
 
 ALWAYS output EXACTLY this three-field structure and nothing else:
 
-integrated_multimodal_description: [Shot 1] <detailed explict visual description only – style, lighting, subject, environment, action, camera movement>
+integrated_multimodal_description: [Shot 1] <detailed explicit visual description only – style, lighting, subject, environment, action, camera movement>
 
 overall_soundscape: <diegetic sounds, breathing, fabric, ambience, dialogue if any>
 
@@ -50,11 +68,62 @@ DIALOGUE RULES:
 """
 
 
+OLLAMA_SYSTEM_PROMPT_I2VA = """You are an expert prompt writer for MiniMax H3 image-to-video (I2VA) generation.
+Your job is to turn a detailed first-frame image description + structured creative guidance into a complete MiniMax H3 I2VA prompt.
+
+ALWAYS output EXACTLY this structure and nothing else (the first-frame instruction line is mandatory):
+
+For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced.
+
+integrated_multimodal_description: [Shot 1] <start from the image content, then describe the continuous action and camera movement that develops forward from it>
+
+overall_soundscape: <diegetic sounds, breathing, fabric, ambience, dialogue if any>
+
+non_diegetic_music: <music description or N/A>
+
+STRICT RULES FOR I2VA:
+- The very first line MUST be exactly:
+  For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced.
+- Then a blank line, then the three core fields.
+- In [Shot 1] begin by anchoring to the provided image description (appearance, clothing, pose, composition, lighting, environment). Preserve identity, clothing, colors, key objects and spatial relationships from the image.
+- Then describe the action onset and continuous development that the user requested (the “change”).
+- Write in English except for spoken dialogue and on-screen text.
+- Start the first shot with [Shot 1] (no timestamp).
+- Describe camera movement clearly (push-in, orbit, tilt, etc.).
+- Put spoken dialogue inside <d>[Language] exact words</d> tags.
+- Put any visible on-screen text in English double quotes.
+- Keep the tone suitable for adult / NSFW content when the user request is adult.
+- Be specific about body language, fabric, skin, lighting and atmosphere.
+- NEVER put sound descriptions inside the integrated_multimodal_description.
+- NEVER put "Avoid" / negative notes inside the integrated_multimodal_description.
+- If the user wants no music, set non_diegetic_music: N/A.
+- Do not add any extra commentary, markdown, or explanation outside the required structure.
+
+DIALOGUE RULES:
+- If dialogue is enabled, it MUST appear in integrated_multimodal_description.
+- Clearly identify who is speaking using the supplied dialogue speaker.
+- The supplied dialogue must be reproduced exactly.
+- Do not paraphrase, translate, shorten, or modify supplied dialogue.
+- Format it exactly as <d>[Language] exact words</d>.
+- Do not invent additional dialogue.
+- If dialogue is disabled, do not generate spoken dialogue.
+"""
+
+
+OLLAMA_VISION_SYSTEM = """You are a precise visual describer for adult / NSFW image-to-video generation.
+Describe the supplied image in rich, objective detail suitable as a first-frame anchor.
+Include: overall style, lighting, composition, camera angle, subject appearance (body, face, hair, expression), clothing or lack of clothing, pose, body language, environment, key objects, textures (skin, fabric, etc.), and atmosphere.
+Be explicit and specific. Do not invent actions that are not visible. Do not add sound. Output only the description paragraph, nothing else."""
+
+
 def _get_ollama_models(base_url="http://localhost:11434", timeout=2.0):
     fallback = [
         "(Ollama not running – start it and refresh)",
         "llama3.2",
         "llama3.1",
+        "llava",
+        "llava:13b",
+        "qwen2.5-vl",
         "qwen2.5",
         "mistral",
         "gemma2",
@@ -87,6 +156,33 @@ def _get_ollama_models(base_url="http://localhost:11434", timeout=2.0):
 
     except Exception:
         return fallback
+
+
+def _tensor_to_base64_png(image_tensor):
+    """Convert ComfyUI IMAGE tensor (B,H,W,C) float 0-1 to base64 PNG string."""
+    if torch is None or np is None or Image is None:
+        raise RuntimeError(
+            "torch / numpy / Pillow required for image input. "
+            "They are normally present in a ComfyUI environment."
+        )
+
+    # Take first image in batch
+    img = image_tensor[0]
+
+    if hasattr(img, "cpu"):
+        img = img.cpu().numpy()
+
+    # Ensure HWC, float 0-1 → uint8
+    if img.dtype != np.uint8:
+        img = (np.clip(img, 0.0, 1.0) * 255).astype(np.uint8)
+
+    if img.shape[-1] == 4:  # RGBA → RGB
+        img = img[..., :3]
+
+    pil = Image.fromarray(img)
+    buffer = io.BytesIO()
+    pil.save(buffer, format="PNG")
+    return base64.b64encode(buffer.getvalue()).decode("utf-8")
 
 
 class FlaminGalahNSFWPromptGenerator:
@@ -168,7 +264,6 @@ class FlaminGalahNSFWPromptGenerator:
                     "default": False
                 }),
 
-                # NEW: free-text speaker field
                 "dialogue_speaker": ("STRING", {
                     "multiline": False,
                     "default": "the woman"
@@ -220,6 +315,12 @@ class FlaminGalahNSFWPromptGenerator:
 
             "optional": {
 
+                "image": ("IMAGE",),
+
+                "vision_model": (model_list, {
+                    "default": model_list[0]
+                }),
+
                 "ollama_url": ("STRING", {
                     "default": "http://localhost:11434"
                 }),
@@ -255,11 +356,12 @@ class FlaminGalahNSFWPromptGenerator:
 
     DESCRIPTION = (
         "Flamin Galah NSFW Prompt Generator – "
-        "structured fields → local Ollama → MiniMax H3 format."
+        "structured fields → local Ollama → MiniMax H3 T2VA or I2VA format. "
+        "Connect an image to enable I2VA (image is described then evolved by your action fields)."
     )
 
     # ---------------------------------------------------------
-    # OLLAMA
+    # OLLAMA HELPERS
     # ---------------------------------------------------------
 
     def _call_ollama(
@@ -267,7 +369,9 @@ class FlaminGalahNSFWPromptGenerator:
         user_content,
         ollama_url,
         ollama_model,
-        temperature
+        temperature,
+        system_prompt,
+        images_b64=None,
     ):
 
         if (
@@ -276,23 +380,27 @@ class FlaminGalahNSFWPromptGenerator:
         ):
             raise RuntimeError(
                 "No valid Ollama model selected. Start Ollama, "
-                "pull a model (e.g. ollama pull llama3.2), "
+                "pull a model (e.g. ollama pull llama3.2 or llava), "
                 "then restart ComfyUI."
             )
 
         url = ollama_url.rstrip("/") + "/api/chat"
+
+        user_msg = {
+            "role": "user",
+            "content": user_content,
+        }
+        if images_b64:
+            user_msg["images"] = images_b64
 
         payload = {
             "model": ollama_model,
             "messages": [
                 {
                     "role": "system",
-                    "content": OLLAMA_SYSTEM_PROMPT
+                    "content": system_prompt
                 },
-                {
-                    "role": "user",
-                    "content": user_content
-                }
+                user_msg,
             ],
             "stream": False,
             "options": {
@@ -315,7 +423,7 @@ class FlaminGalahNSFWPromptGenerator:
 
             with urllib.request.urlopen(
                 req,
-                timeout=120
+                timeout=180
             ) as resp:
 
                 result = json.loads(
@@ -348,6 +456,32 @@ class FlaminGalahNSFWPromptGenerator:
             raise RuntimeError(
                 f"Ollama call failed: {e}"
             ) from e
+
+    def _describe_image(
+        self,
+        image_tensor,
+        ollama_url,
+        vision_model,
+        temperature,
+    ):
+        """Use a vision model to produce a detailed first-frame description."""
+        b64 = _tensor_to_base64_png(image_tensor)
+
+        user_content = (
+            "Describe this image in rich visual detail. "
+            "Focus on style, lighting, composition, subject appearance, "
+            "pose, clothing, environment, textures and atmosphere. "
+            "Be explicit. Output only the description."
+        )
+
+        return self._call_ollama(
+            user_content,
+            ollama_url,
+            vision_model,
+            temperature,
+            OLLAMA_VISION_SYSTEM,
+            images_b64=[b64],
+        )
 
     # ---------------------------------------------------------
     # DIALOGUE
@@ -390,10 +524,19 @@ class FlaminGalahNSFWPromptGenerator:
         include_dialogue=False,
         dialogue_speaker="",
         dialogue="",
-        dialogue_language="English"
+        dialogue_language="English",
+        is_i2va=False,
     ):
 
         text = text.strip()
+
+        # Strip any accidental leading instruction if present so we can re-add it cleanly
+        text = re.sub(
+            r"^For the target video,.*?\n+",
+            "",
+            text,
+            flags=re.DOTALL | re.IGNORECASE
+        ).strip()
 
         desc_match = re.search(
             r"integrated_multimodal_description:\s*"
@@ -515,7 +658,7 @@ class FlaminGalahNSFWPromptGenerator:
         ):
             final_music = "N/A"
 
-        result = (
+        core = (
             f"integrated_multimodal_description: "
             f"{description}\n\n\n"
             f"overall_soundscape: "
@@ -523,6 +666,15 @@ class FlaminGalahNSFWPromptGenerator:
             f"non_diegetic_music: "
             f"{final_music}"
         )
+
+        if is_i2va:
+            result = (
+                "For the target video, at 0.00 seconds into the target video, "
+                "<Picture 1> (from [Shot 1]) is fully referenced.\n\n"
+                f"{core}"
+            )
+        else:
+            result = core
 
         if lora_tags and lora_tags.strip():
             result = (
@@ -551,16 +703,30 @@ class FlaminGalahNSFWPromptGenerator:
         music,
         extra_details,
         negative_notes="",
-        lora_tags=""
+        lora_tags="",
+        image_description=None,
+        is_i2va=False,
     ):
 
-        shot1 = (
-            f"[Shot 1] "
-            f"{style}, "
-            f"{lighting}. "
-            f"A {camera}. "
-            f"{action.strip()}."
-        )
+        if is_i2va and image_description:
+            # Anchor to image then apply the user's requested change
+            shot1 = (
+                f"[Shot 1] "
+                f"{style}, "
+                f"{lighting}. "
+                f"The scene begins exactly as shown in <Picture 1>: "
+                f"{image_description.strip()}. "
+                f"A {camera}. "
+                f"Then the action develops: {action.strip()}."
+            )
+        else:
+            shot1 = (
+                f"[Shot 1] "
+                f"{style}, "
+                f"{lighting}. "
+                f"A {camera}. "
+                f"{action.strip()}."
+            )
 
         if extra_details.strip():
             shot1 += (
@@ -617,7 +783,7 @@ class FlaminGalahNSFWPromptGenerator:
         ):
             music_text = "N/A"
 
-        result = (
+        core = (
             f"integrated_multimodal_description: "
             f"{shot1}\n\n\n"
             f"overall_soundscape: "
@@ -625,6 +791,15 @@ class FlaminGalahNSFWPromptGenerator:
             f"non_diegetic_music: "
             f"{music_text}"
         )
+
+        if is_i2va:
+            result = (
+                "For the target video, at 0.00 seconds into the target video, "
+                "<Picture 1> (from [Shot 1]) is fully referenced.\n\n"
+                f"{core}"
+            )
+        else:
+            result = core
 
         if lora_tags and lora_tags.strip():
             result = (
@@ -653,14 +828,80 @@ class FlaminGalahNSFWPromptGenerator:
         music,
         extra_details,
         ollama_model,
+        image=None,
+        vision_model=None,
         ollama_url="http://localhost:11434",
         temperature=0.7,
         negative_notes="",
         lora_tags=""
     ):
 
-        lines = [
-            f"Action: {action.strip()}",
+        is_i2va = image is not None
+
+        # Resolve vision model (fall back to main model if not set)
+        if vision_model is None or (
+            isinstance(vision_model, str)
+            and (vision_model.startswith("(") or not vision_model.strip())
+        ):
+            vision_model = ollama_model
+
+        image_description = None
+
+        # -----------------------------------------------------
+        # I2VA: describe the image first
+        # -----------------------------------------------------
+        if is_i2va:
+            try:
+                image_description = self._describe_image(
+                    image,
+                    ollama_url,
+                    vision_model,
+                    temperature,
+                )
+                print(
+                    f"[Flamin Galah] Image described "
+                    f"({len(image_description)} chars)."
+                )
+            except Exception as e:
+                print(
+                    f"[Flamin Galah] Vision describe failed ({e}). "
+                    "Falling back to text-only construction."
+                )
+                image_description = None
+                # Keep is_i2va=True so the output still carries the
+                # required I2VA header; the fallback will use a generic
+                # anchor if description is missing.
+
+        # -----------------------------------------------------
+        # Build user content for the prompt writer
+        # -----------------------------------------------------
+
+        lines = []
+
+        if is_i2va:
+            lines.append("MODE: I2VA (image-to-video)")
+            if image_description:
+                lines.append(
+                    "FIRST-FRAME IMAGE DESCRIPTION "
+                    "(use as the exact starting point of Shot 1):"
+                )
+                lines.append(image_description.strip())
+                lines.append("")
+                lines.append(
+                    "The video must begin with the scene shown in the image "
+                    "(preserve identity, clothing, pose, composition, lighting). "
+                    "Then develop the following change / action:"
+                )
+            else:
+                lines.append(
+                    "An image is provided as the first frame. "
+                    "Describe the video starting from that image and then applying the action."
+                )
+        else:
+            lines.append("MODE: T2VA (text-to-video)")
+
+        lines.extend([
+            f"Action / change: {action.strip()}",
             f"Camera: {camera}",
             f"Style: {style}",
             f"Lighting: {lighting}",
@@ -669,7 +910,7 @@ class FlaminGalahNSFWPromptGenerator:
                 f"Soundscape: "
                 f"{soundscape.strip() or 'natural ambient sound'}"
             ),
-        ]
+        ])
 
         if music.strip() and music.strip().upper() != "N/A":
             lines.append(
@@ -744,8 +985,13 @@ class FlaminGalahNSFWPromptGenerator:
 
         user_content = "\n".join(lines)
 
+        system_prompt = (
+            OLLAMA_SYSTEM_PROMPT_I2VA if is_i2va
+            else OLLAMA_SYSTEM_PROMPT_T2VA
+        )
+
         # -----------------------------------------------------
-        # Ollama
+        # Ollama prompt writer
         # -----------------------------------------------------
 
         try:
@@ -754,7 +1000,8 @@ class FlaminGalahNSFWPromptGenerator:
                 user_content,
                 ollama_url,
                 ollama_model,
-                temperature
+                temperature,
+                system_prompt,
             )
 
             prompt = self._force_clean_format(
@@ -765,7 +1012,8 @@ class FlaminGalahNSFWPromptGenerator:
                 include_dialogue,
                 dialogue_speaker,
                 dialogue,
-                dialogue_language
+                dialogue_language,
+                is_i2va=is_i2va,
             )
 
         except Exception as e:
@@ -789,7 +1037,9 @@ class FlaminGalahNSFWPromptGenerator:
                 music,
                 extra_details,
                 negative_notes,
-                lora_tags
+                lora_tags,
+                image_description=image_description,
+                is_i2va=is_i2va,
             )
 
         return (prompt,)
