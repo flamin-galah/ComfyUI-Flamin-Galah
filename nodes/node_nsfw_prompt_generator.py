@@ -234,7 +234,6 @@ class FlaminGalahNSFWPromptGenerator:
                     "cyberpunk",
                     "film noir",
                     "documentary style",
-                    "music video",
                 ], {
                     "default": "photorealistic"
                 }),
@@ -249,6 +248,7 @@ class FlaminGalahNSFWPromptGenerator:
                     "high-contrast dramatic",
                     "volumetric fog and shafts of light",
                     "intimate rim lighting",
+                    "chiaroscuro",
                 ], {
                     "default": "high-contrast dramatic"
                 }),
