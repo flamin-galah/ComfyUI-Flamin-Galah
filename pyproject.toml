@@ -1,0 +1,14 @@
+[project]
+name = "Flamin Galah"
+description = "ComfyUI nodes that write MiniMax H3 T2VA and I2VA prompts from filmmaker fields and stills, via local Ollama or the xAI Grok API. Every node outputs h3_prompt."
+version = "1.0.9"
+license = { file = "LICENSE" }
+dependencies = []
+
+[project.urls]
+Repository = "https://github.com/flamin-galah/ComfyUI-Flamin-Galah"
+
+[tool.comfy]
+PublisherId = "flamin-galah"
+DisplayName = "Flamin Galah"
+Icon = "https://github.com/flamin-galah/ComfyUI-Flamin-Galah/raw/main/docs/flamin-galah-logo.png"
