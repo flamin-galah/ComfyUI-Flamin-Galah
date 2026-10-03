@@ -49,7 +49,7 @@ Text-only generation is **T2VA** (no picture line). These nodes fill that struct
 | **Flamin Galah Image Describer** | `prompt/Flamin Galah` | Image → Ollama vision + writer → **Image to Video** (H3 fields) or **Image to Image** (plain paragraph). | `h3_prompt` |
 | **Flamin Galah Grok Image Describer** | `prompt/Flamin Galah` | Image → xAI Grok API → **I2VA** block. | `h3_prompt` |
 
-<p align="center"><em>Flamin Galah NSFW Prompt Generator — action, camera, style, lighting, dialogue, sound, and Ollama model. Output socket: h3_prompt.</em></p>
+<p align="center"><em>Flamin Galah NSFW Prompt Generator — extra_description, camera, style, lighting, dialogue, sound, and Ollama model. Output socket: h3_prompt.</em></p>
 
 <p align="center">
   <img src="docs/nsfw-prompt-generator.png" alt="Flamin Galah NSFW Prompt Generator node in ComfyUI">
@@ -131,13 +131,13 @@ Selectable models: `grok-4.7`, `grok-4.6`, `grok-4.5`, `grok-4`, `grok-2-vision-
 
 **Output:** `h3_prompt` (`STRING`)
 
-No image → **T2VA**. Image connected → **I2VA** (vision model describes the frame, the writer evolves it with your action fields, and the official first-frame line is prepended).
+No image → **T2VA**. Image connected → **I2VA** (vision model describes the frame, the writer evolves it with `extra_description`, and the official first-frame line is prepended).
 
 **Required widgets**
 
 | Widget | Role |
 | --- | --- |
-| `action` | Scene / subject / motion. Tall multiline field (frontend forces ~180px). |
+| `extra_description` | Scene / subject / motion. Tall multiline field (frontend forces ~180px). Same widget name as the Image Describer and Grok Image Describer. |
 | `camera` | Presets: static wide, POV, slow push-in, tracking, dolly zoom, handheld, low-angle, aerial, orbit, close-up, pan, intimate close-up, slow tilt up. |
 | `style` | live-action cinematic, photorealistic, erotic film, softcore cinematic, glamour, anime, cyberpunk, film noir, documentary. |
 | `lighting` | Practical / mood presets (soft red, candlelight, neon wet streets, golden hour, moonlight, chiaroscuro, …). |
@@ -260,7 +260,7 @@ or connect the same image into the generator’s optional `image` input.
 | Empty / weak image description | Use a real vision model (`llava`, `qwen2.5-vl`, `llama3.2-vision`), not a text-only tag. |
 | Grok node errors on key | Paste `api_key` or export `XAI_API_KEY` / `GROK_API_KEY` for the ComfyUI process. |
 | Output still named `prompt` or `image_description` | Delete the node from the graph and add a new one. All three nodes now expose `h3_prompt`. |
-| Action box too small | The pack ships `web/flamin_galah.js`, which forces a taller `action` widget and a minimum node size. |
+| Extra description box too small | The pack ships `web/flamin_galah.js`, which forces a taller `extra_description` widget and a minimum node size. |
 
 ---
 
@@ -283,7 +283,7 @@ ComfyUI-Flamin-Galah/
 │   ├── node_image_describer.py
 │   └── node_grok_api_image_describer.py
 └── web/
-    ├── flamin_galah.js          # larger action textarea, duration pills
+    ├── flamin_galah.js          # larger extra_description textarea, duration pills
     └── flamin-galah-logo.png
 ```
 

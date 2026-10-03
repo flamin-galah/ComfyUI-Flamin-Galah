@@ -37,7 +37,7 @@ function relabelBadge(node) {
 }
 
 function enlargeAction(node) {
-    const actionWidget = node.widgets?.find((w) => w.name === "action");
+    const actionWidget = node.widgets?.find((w) => w.name === "extra_description");
     if (!actionWidget) {
         return;
     }

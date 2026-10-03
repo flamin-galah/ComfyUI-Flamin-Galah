@@ -197,7 +197,7 @@ class FlaminGalahNSFWPromptGenerator:
         return {
             "required": {
 
-                "action": ("STRING", {
+                "extra_description": ("STRING", {
                     "multiline": True,
                     "rows": 6,
                     "default": (
@@ -359,7 +359,7 @@ class FlaminGalahNSFWPromptGenerator:
     DESCRIPTION = (
         "Flamin Galah NSFW Prompt Generator – "
         "structured fields → local Ollama → MiniMax H3 T2VA or I2VA format. "
-        "Connect an image to enable I2VA (image is described then evolved by your action fields)."
+        "Connect an image to enable I2VA (image is described then evolved by your extra_description)."
     )
 
     # ---------------------------------------------------------
@@ -701,7 +701,7 @@ class FlaminGalahNSFWPromptGenerator:
 
     def _build_fallback(
         self,
-        action,
+        extra_description,
         camera,
         style,
         lighting,
@@ -728,7 +728,7 @@ class FlaminGalahNSFWPromptGenerator:
                 f"The scene begins exactly as shown in <Picture 1>: "
                 f"{image_description.strip()}. "
                 f"A {camera}. "
-                f"Then the action develops: {action.strip()}."
+                f"Then the action develops: {extra_description.strip()}."
             )
         else:
             shot1 = (
@@ -736,7 +736,7 @@ class FlaminGalahNSFWPromptGenerator:
                 f"{style}, "
                 f"{lighting}. "
                 f"A {camera}. "
-                f"{action.strip()}."
+                f"{extra_description.strip()}."
             )
 
         if extra_details.strip():
@@ -833,7 +833,7 @@ class FlaminGalahNSFWPromptGenerator:
 
     def generate(
         self,
-        action,
+        extra_description,
         camera,
         style,
         lighting,
@@ -908,18 +908,18 @@ class FlaminGalahNSFWPromptGenerator:
                 lines.append(
                     "The video must begin with the scene shown in the image "
                     "(preserve identity, clothing, pose, composition, lighting). "
-                    "Then develop the following change / action:"
+                    "Then develop the following change:"
                 )
             else:
                 lines.append(
                     "An image is provided as the first frame. "
-                    "Describe the video starting from that image and then applying the action."
+                    "Describe the video starting from that image and then applying the extra description."
                 )
         else:
             lines.append("MODE: T2VA (text-to-video)")
 
         lines.extend([
-            f"Action / change: {action.strip()}",
+            f"Extra description: {extra_description.strip()}",
             f"Camera: {camera}",
             f"Style: {style}",
             f"Lighting: {lighting}",
@@ -1041,7 +1041,7 @@ class FlaminGalahNSFWPromptGenerator:
             )
 
             prompt = self._build_fallback(
-                action,
+                extra_description,
                 camera,
                 style,
                 lighting,
