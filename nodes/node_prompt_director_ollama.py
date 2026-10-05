@@ -1,5 +1,5 @@
 """
-ComfyUI custom node: Flamin Galah NSFW Prompt Generator
+ComfyUI custom node: Flamin Galah Prompt Director (Ollama)
 Builds structured MiniMax H3 T2VA / I2VA prompts via local Ollama from
 filmmaker-style fields (no free-form idea box).
 
@@ -357,7 +357,7 @@ class FlaminGalahNSFWPromptGenerator:
     CATEGORY = "prompt/Flamin Galah"
 
     DESCRIPTION = (
-        "Flamin Galah NSFW Prompt Generator – "
+        "Flamin Galah Prompt Director (Ollama) – "
         "structured fields → local Ollama → MiniMax H3 T2VA or I2VA format. "
         "Connect an image to enable I2VA (image is described then evolved by your extra_description)."
     )
@@ -1073,5 +1073,5 @@ NODE_CLASS_MAPPINGS = {
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "FlaminGalahNSFWPromptGenerator":
-        "Flamin Galah NSFW Prompt Generator",
+        "Flamin Galah Prompt Director (Ollama)",
 }

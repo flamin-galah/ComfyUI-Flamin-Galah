@@ -1,5 +1,5 @@
 """
-ComfyUI custom node: Flamin Galah Image Describer
+ComfyUI custom node: Flamin Galah Image Prompt Builder (Ollama)
 Uses local Ollama only. A vision model describes the image;
 a second local Ollama model writes either an H3 I2V prompt or a I2I paragraph.
 """
@@ -205,7 +205,7 @@ class FlaminGalahImageDescriber:
     CATEGORY = "prompt/Flamin Galah"
 
     DESCRIPTION = (
-        "Flamin Galah Image Describer – "
+        "Flamin Galah Image Prompt Builder (Ollama) – "
         "local Ollama only. Vision model describes the image; "
         "prompt model writes I2V (H3 image-to-video fields) or I2I (plain paragraph)."
     )
@@ -411,5 +411,5 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "FlaminGalahImageDescriber": "Flamin Galah Image Describer",
+    "FlaminGalahImageDescriber": "Flamin Galah Image Prompt Builder (Ollama)",
 }

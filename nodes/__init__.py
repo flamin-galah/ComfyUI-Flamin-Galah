@@ -1,12 +1,12 @@
-from .node_nsfw_prompt_generator import (
+from .node_prompt_director_ollama import (
     NODE_CLASS_MAPPINGS as _GEN_CLASS,
     NODE_DISPLAY_NAME_MAPPINGS as _GEN_DISPLAY,
 )
-from .node_image_describer import (
+from .node_image_prompt_builder_ollama import (
     NODE_CLASS_MAPPINGS as _DESC_CLASS,
     NODE_DISPLAY_NAME_MAPPINGS as _DESC_DISPLAY,
 )
-from .node_grok_api_image_describer import (
+from .node_image_prompt_builder_grok import (
     NODE_CLASS_MAPPINGS as _GROK_CLASS,
     NODE_DISPLAY_NAME_MAPPINGS as _GROK_DISPLAY,
 )

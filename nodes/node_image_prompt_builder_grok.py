@@ -1,5 +1,5 @@
 """
-ComfyUI custom node: Flamin Galah Image Describer
+ComfyUI custom node: Flamin Galah Image Prompt Builder (Grok)
 Uses the xAI Grok API to describe a provided image and build an H3 I2VA prompt.
 """
 
@@ -150,7 +150,7 @@ class FlaminGalahGrokImageDescriber:
     CATEGORY = "prompt/Flamin Galah"
 
     DESCRIPTION = (
-        "Flamin Galah Grok Image Describer – "
+        "Flamin Galah Image Prompt Builder (Grok) – "
         "sends the connected image to the xAI Grok API, enhances it with the user prompt, "
         "and returns an H3 I2VA prompt block."
     )
@@ -301,5 +301,5 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "FlaminGalahGrokImageDescriber": "Flamin Galah Grok Image Describer",
+    "FlaminGalahGrokImageDescriber": "Flamin Galah Image Prompt Builder (Grok)",
 }
