@@ -20,6 +20,11 @@ except ImportError:
     Image = None
 
 
+I2V_FIRST_FRAME_LINE = (
+    "For the target video, at 0.00 seconds into the target video, "
+    "(from [Shot 1]) is fully referenced."
+)
+
 SHOT_OPENER = "[Shot 1] Live-action, cinematic,"
 
 OLLAMA_VISION_SYSTEM = """You are a precise visual describer for image-to-video generation.
@@ -138,7 +143,7 @@ Use N/A only if the shot implies complete silence."""
 
 
 def _format_i2v_output(description, soundscape=""):
-    """H3 image-to-video block: three fields, no image-reference header."""
+    """H3 image-to-video block: first-frame reference line and three fields."""
     vision = _strip_redundant_style_prefix((description or "").strip())
     if vision:
         body = f"{SHOT_OPENER} {vision}"
@@ -146,6 +151,7 @@ def _format_i2v_output(description, soundscape=""):
         body = SHOT_OPENER.rstrip(",")
     sound = (soundscape or "").strip() or "N/A"
     return (
+        f"{I2V_FIRST_FRAME_LINE}\n\n"
         f"integrated_multimodal_description: {body}\n\n"
         f"overall_soundscape: {sound}\n\n"
         "non_diegetic_music: N/A"

@@ -190,7 +190,7 @@ Starts from a still image and uses separate Ollama vision and writing passes. It
 | `ollama_url` | Defaults to `http://localhost:11434`. |
 | `lora_tag` | Optional text appended as a `LoRA tag:` section. |
 
-**Image to Video output:** three H3-style fields with `non_diegetic_music: N/A`. Unlike the Prompt Director's image path and the Grok node, the current formatter **does not prepend the first-frame-reference line**.
+**Image to Video output:** starts with `For the target video, at 0.00 seconds into the target video, (from [Shot 1]) is fully referenced.`, followed by a blank line and the three H3-style fields with `non_diegetic_music: N/A`. The formatter adds this line deterministically; it does not depend on the model writing it.
 
 **Image to Image output:** a plain prompt paragraph rather than the three video fields. It still uses the output socket named `h3_prompt`.
 
@@ -252,7 +252,21 @@ overall_soundscape: Soft fabric movement and quiet room ambience.
 non_diegetic_music: N/A
 ```
 
-These examples illustrate the pack's intended format; check the requirements of your actual downstream MiniMax H3 integration. The local Image Prompt Builder omits the reference line in its current implementation. Populated LoRA fields append an extra section, so leave them blank if your downstream consumer expects exactly three fields.
+### Ollama Image Prompt Builder video output
+
+The local Image Prompt Builder adds this requested opening line in **Image to Video** mode. Its wording deliberately differs from the Prompt Director and Grok header above: it has no `<Picture 1>` marker.
+
+```text
+For the target video, at 0.00 seconds into the target video, (from [Shot 1]) is fully referenced.
+
+integrated_multimodal_description: [Shot 1] Live-action, cinematic, The subject slowly turns towards the camera as it moves forward.
+
+overall_soundscape: Soft fabric movement and quiet room ambience.
+
+non_diegetic_music: N/A
+```
+
+These examples illustrate the pack's intended format; check the requirements of your actual downstream MiniMax H3 integration. Image to Image mode remains a plain paragraph with no first-frame line. Populated LoRA fields append an extra section, so leave them blank if your downstream consumer expects only the reference line and three fields.
 
 ## Example workflows
 
@@ -304,6 +318,8 @@ The bundled screenshots show the current node titles and example outputs using t
 
 ![Flamin Galah Image Prompt Builder (Ollama) — example workflow](docs/image_prompt_builder_ollama.png)
 
+This screenshot was captured before the local Image to Video first-frame line was added. Current output includes the opening line shown above; the screenshot asset itself is unchanged.
+
 ### Image Prompt Builder (Grok)
 
 ![Flamin Galah Image Prompt Builder (Grok) — example workflow](docs/image_prompt_builder_grok.png)
@@ -320,7 +336,7 @@ The bundled screenshots show the current node titles and example outputs using t
 
 ## Existing-workflow compatibility
 
-This build updates visible names, tooltip labels, documentation, and the node Python filenames. Internal IDs, class names, category, input/output schemas, and generation behavior remain unchanged. Imports have been updated to match the new filenames.
+This build retains the visible-name and filename updates and adds the requested first-frame line to the local Image Prompt Builder's Image to Video output. Internal IDs, class names, category, input/output schemas, and generation pipeline remain unchanged. Image to Image output, the Prompt Director, and the Grok node are unchanged.
 
 | Earlier title | Current title | Unchanged internal ID |
 | --- | --- | --- |
@@ -330,7 +346,7 @@ This build updates visible names, tooltip labels, documentation, and the node Py
 
 Existing workflows retain their node references. Saved or manually customized canvas titles may retain older text; edit the title or add a fresh node if you want the new label. For workflows from versions with different widget schemas or output names, back up the workflow and add a fresh node if needed.
 
-This naming/documentation and filename update does **not** repair implementation issues identified during review.
+The missing local Image to Video first-frame line is addressed by this update. Other implementation issues identified during review are unchanged.
 
 ## Troubleshooting and current limitations
 
@@ -346,7 +362,7 @@ This naming/documentation and filename update does **not** repair implementation
 | Unexpected dialogue remains | Review the text manually. Cleanup currently removes language-labelled dialogue tags but not every unlabelled tag or natural-language line. |
 | Output contains Markdown or unexpected text | Inspect and clean it before use. Formatting validation is not exhaustive; the local image node can also accept reasoning text if final content is empty. |
 | Image-based director result does not match the still | Check console warnings: the node can continue after a vision failure without an image-description anchor. |
-| Local video output has no first-frame line | This is the current local Image Prompt Builder format; add the line only if required by your downstream integration. |
+| Local video output has no first-frame line | Install the updated `node_image_prompt_builder_ollama.py`, restart ComfyUI, select Image to Video, and rerun the node. Image to Image intentionally has no header. |
 | Strict parser rejects the output | Leave LoRA fields blank and check for code fences or extra sections. |
 | Large images fail on the cloud path | Resize the input before sending it. Full-resolution PNG uploads are not currently size-checked by the node. |
 | Extra-description editor is not enlarged | The frontend's taller-editor adjustment currently applies to Prompt Director only. |
