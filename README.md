@@ -298,15 +298,15 @@ The bundled screenshots show the current node titles and example outputs using t
 
 ### Prompt Director (Ollama)
 
-![Flamin Galah Prompt Director (Ollama) — example workflow](docs/nsfw-prompt-generator.png)
+![Flamin Galah Prompt Director (Ollama) — example workflow](docs/prompt_director_ollama.png)
 
 ### Image Prompt Builder (Ollama)
 
-![Flamin Galah Image Prompt Builder (Ollama) — example workflow](docs/image-prompter.png)
+![Flamin Galah Image Prompt Builder (Ollama) — example workflow](docs/image_prompt_builder_ollama.png)
 
 ### Image Prompt Builder (Grok)
 
-![Flamin Galah Image Prompt Builder (Grok) — example workflow](docs/grok-api-prompter.png)
+![Flamin Galah Image Prompt Builder (Grok) — example workflow](docs/image_prompt_builder_grok.png)
 
 ## Node Python filenames
 
@@ -361,9 +361,9 @@ ComfyUI-Flamin-Galah/
 ├── pyproject.toml
 ├── docs/
 │   ├── flamin-galah-logo.png
-│   ├── nsfw-prompt-generator.png
-│   ├── image-prompter.png
-│   └── grok-api-prompter.png
+│   ├── prompt_director_ollama.png
+│   ├── image_prompt_builder_ollama.png
+│   └── image_prompt_builder_grok.png
 ├── nodes/
 │   ├── __init__.py
 │   ├── node_prompt_director_ollama.py
@@ -374,7 +374,7 @@ ComfyUI-Flamin-Galah/
     └── flamin-galah-logo.png
 ```
 
-The node Python filenames follow `node_<purpose>_<provider>.py`. Screenshot asset filenames retain their original names. Internal node IDs remain unchanged for saved-workflow compatibility. The frontend supplies branding, output-mode pills for the local image node, duration pills for the director, and the director's taller scene-description editor.
+The node Python filenames follow `node_<purpose>_<provider>.py`. Screenshot asset filenames now describe each node and its provider. Internal node IDs remain unchanged for saved-workflow compatibility. The frontend supplies branding, output-mode pills for the local image node, duration pills for the director, and the director's taller scene-description editor.
 
 ## License
 
