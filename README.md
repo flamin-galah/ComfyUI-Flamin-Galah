@@ -190,9 +190,11 @@ Starts from a still image and uses separate Ollama vision and writing passes. It
 | `ollama_url` | Defaults to `http://localhost:11434`. |
 | `lora_tag` | Optional text appended as a `LoRA tag:` section. |
 
-**Image to Video output:** starts with `For the target video, at 0.00 seconds into the target video, (from [Shot 1]) is fully referenced.`, followed by a blank line and the three H3-style fields with `non_diegetic_music: N/A`. The formatter adds this line deterministically; it does not depend on the model writing it.
+**Image to Video output:** starts with `For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced.`, followed by one blank line and the three H3-style fields with `non_diegetic_music: N/A`. The formatter adds this line deterministically and ensures the description starts with `[Shot 1]`. It preserves the writer's source-derived style instead of forcing a live-action prefix.
 
 **Image to Image output:** a plain prompt paragraph rather than the three video fields. It still uses the output socket named `h3_prompt`.
+
+The video writer is instructed to establish the image's exact opening style, composition, appearance, pose, lighting, and spatial relationships before developing the requested action. Changes belong after frame 0. `overall_soundscape: N/A` is reserved for explicitly requested complete silence; a quiet or static image alone is not a silence request. Empty video descriptions or soundscapes raise an error rather than silently creating an incomplete prompt.
 
 This node downsizes the image sent to vision to a maximum side of 1024 pixels and encodes it as JPEG. The Prompt Director and Grok node currently use full-resolution PNGs instead.
 
@@ -254,19 +256,19 @@ non_diegetic_music: N/A
 
 ### Ollama Image Prompt Builder video output
 
-The local Image Prompt Builder adds this requested opening line in **Image to Video** mode. Its wording deliberately differs from the Prompt Director and Grok header above: it has no `<Picture 1>` marker.
+The local Image Prompt Builder uses MiniMax's official I2VA opening line in **Image to Video** mode. The `<Picture 1>` marker identifies the actual first frame. The opening visual style and composition must come from that image, not an unconditional live-action preset.
 
 ```text
-For the target video, at 0.00 seconds into the target video, (from [Shot 1]) is fully referenced.
+For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced.
 
-integrated_multimodal_description: [Shot 1] Live-action, cinematic, The subject slowly turns towards the camera as it moves forward.
+integrated_multimodal_description: [Shot 1] 2D vector illustration. The pink cockatoo logo shown in <Picture 1> begins in the same profile, with its pale crest, magenta circular backdrop, black background, palette, and composition preserved. After the opening frame, the crest gently bobs and the bird makes a slight head tilt. The camera pushes in with small amplitude at slow speed while the graphic style remains consistent.
 
-overall_soundscape: Soft fabric movement and quiet room ambience.
+overall_soundscape: Soft feather rustling accompanies the crest movement over a faint airy background.
 
 non_diegetic_music: N/A
 ```
 
-These examples illustrate the pack's intended format; check the requirements of your actual downstream MiniMax H3 integration. Image to Image mode remains a plain paragraph with no first-frame line. Populated LoRA fields append an extra section, so leave them blank if your downstream consumer expects only the reference line and three fields.
+These examples illustrate the pack's intended format. See [MiniMax's official base prompt guide](https://huggingface.co/MiniMaxAI/MiniMax-H3/blob/main/docs/VIDEO_PROMPT_WRITING_GUIDE_base_en.md), especially sections 2.1, 3.1, 4.1, and 4.6, and the [ComfyUI H3 prompt guide](https://docs.comfy.org/tutorials/video/minimax/minimax-h3-prompt-guide). Image to Image mode remains a plain paragraph with no first-frame line. Populated LoRA fields append an extra section, so leave them blank if your downstream consumer expects only the reference line and three fields. Model-generated content still needs review against the actual image; correct structure alone does not guarantee visual fidelity.
 
 ## Example workflows
 
@@ -336,7 +338,7 @@ This screenshot was captured before the local Image to Video first-frame line wa
 
 ## Existing-workflow compatibility
 
-This build retains the visible-name and filename updates and adds the requested first-frame line to the local Image Prompt Builder's Image to Video output. Internal IDs, class names, category, input/output schemas, and generation pipeline remain unchanged. Image to Image output, the Prompt Director, and the Grok node are unchanged.
+This build retains the visible-name and filename updates and aligns the local Image Prompt Builder's Image to Video header and instructions with MiniMax's first-frame guide. Internal IDs, class names, category, input/output schemas, and generation pipeline remain unchanged. Image to Image prompting and formatting, the Prompt Director, and the Grok node are unchanged.
 
 | Earlier title | Current title | Unchanged internal ID |
 | --- | --- | --- |
@@ -346,7 +348,7 @@ This build retains the visible-name and filename updates and adds the requested 
 
 Existing workflows retain their node references. Saved or manually customized canvas titles may retain older text; edit the title or add a fresh node if you want the new label. For workflows from versions with different widget schemas or output names, back up the workflow and add a fresh node if needed.
 
-The missing local Image to Video first-frame line is addressed by this update. Other implementation issues identified during review are unchanged.
+The local video header now includes the required `<Picture 1>` marker, source-image style is no longer overridden by the formatter, and video-only writing instructions explicitly anchor frame 0 before continuation. Other implementation issues identified during review are unchanged.
 
 ## Troubleshooting and current limitations
 
@@ -363,6 +365,8 @@ The missing local Image to Video first-frame line is addressed by this update. O
 | Output contains Markdown or unexpected text | Inspect and clean it before use. Formatting validation is not exhaustive; the local image node can also accept reasoning text if final content is empty. |
 | Image-based director result does not match the still | Check console warnings: the node can continue after a vision failure without an image-description anchor. |
 | Local video output has no first-frame line | Install the updated `node_image_prompt_builder_ollama.py`, restart ComfyUI, select Image to Video, and rerun the node. Image to Image intentionally has no header. |
+| Local video output changes an illustration into live-action | Install the first-frame conformance update and rerun. The video formatter no longer injects a live-action prefix; also verify the selected models describe and preserve the source style. |
+| Local video soundscape is `N/A` without a silence request | Rerun or correct the generated soundscape. The writer is instructed to reserve `N/A` for explicitly requested complete silence, but the model's semantic choice is not independently validated. |
 | Strict parser rejects the output | Leave LoRA fields blank and check for code fences or extra sections. |
 | Large images fail on the cloud path | Resize the input before sending it. Full-resolution PNG uploads are not currently size-checked by the node. |
 | Extra-description editor is not enlarged | The frontend's taller-editor adjustment currently applies to Prompt Director only. |

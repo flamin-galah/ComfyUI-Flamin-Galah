@@ -22,7 +22,7 @@ except ImportError:
 
 I2V_FIRST_FRAME_LINE = (
     "For the target video, at 0.00 seconds into the target video, "
-    "(from [Shot 1]) is fully referenced."
+    "<Picture 1> (from [Shot 1]) is fully referenced."
 )
 
 SHOT_OPENER = "[Shot 1] Live-action, cinematic,"
@@ -134,22 +134,41 @@ If there is no enhancement prompt, keep the first-frame state and add only a nat
 Write one continuous paragraph. No lists, no field labels, no sound, no preamble."""
 
 
+I2V_PROMPT_WRITER_SYSTEM = """You write MiniMax H3 first-frame image-to-video shot descriptions.
+Write one continuous English paragraph beginning with [Shot 1]. Derive the visual style from the source image description; do not turn a 2D illustration, animation, logo, or other stylized image into live-action or photorealism.
+First anchor the opening at 0.00 seconds to <Picture 1>: establish the source style, camera angle, composition, subject identity, appearance, clothing, colors, pose, lighting, setting, key objects, and spatial relationships.
+Then develop forward: first-frame anchor -> action onset -> continuous development -> result or reaction. The user enhancement specifies what happens after the unchanged first frame, not a replacement opening state.
+Preserve the source details at frame 0 even when later requested motion changes pose, viewpoint, or framing. Describe camera movement naturally, including amplitude and speed when meaningful.
+If no enhancement is supplied, retain the image's opening state and add only a slight, plausible continuation. Do not invent a different person, outfit, setting, or visual style.
+Keep any visible text verbatim in English double quotes. Do not invent dialogue.
+No lists, field labels, soundscape paragraph, music paragraph, or preamble. Do not write the image-alignment instruction; the formatter adds it separately."""
+
+
 SOUNDSCAPE_SYSTEM = """You write the H3 overall_soundscape field from a shot description.
 Write 1–4 English sentences in one continuous paragraph covering only:
 ambient sound; physical action sounds implied by the shot; non-verbal human sounds such as breathing, laughter, or panting.
 Do not include dialogue, singing, diegetic music, or non-diegetic music.
 Do not use field labels or bullet lists.
-Use N/A only if the shot implies complete silence."""
+Use N/A only when the user explicitly requests complete silence throughout the video. A still or quiet scene alone is not a request for silence. Otherwise describe restrained ambient or physical sounds consistent with the setting and action; do not invent unrelated sound sources."""
 
 
 def _format_i2v_output(description, soundscape=""):
     """H3 image-to-video block: first-frame reference line and three fields."""
-    vision = _strip_redundant_style_prefix((description or "").strip())
-    if vision:
-        body = f"{SHOT_OPENER} {vision}"
+    vision = (description or "").strip()
+    # Strip a model-written copy of either the official or previous header.
+    legacy_header = I2V_FIRST_FRAME_LINE.replace("<Picture 1> ", "")
+    lines = vision.splitlines()
+    if lines and lines[0].strip() in (I2V_FIRST_FRAME_LINE, legacy_header):
+        vision = "\n".join(lines[1:]).strip()
+    if not vision:
+        raise RuntimeError("Ollama returned no first-frame shot description.")
+    if vision.lower().startswith("[shot 1]"):
+        body = "[Shot 1]" + vision[len("[Shot 1]"):]
     else:
-        body = SHOT_OPENER.rstrip(",")
-    sound = (soundscape or "").strip() or "N/A"
+        body = f"[Shot 1] {vision}"
+    sound = (soundscape or "").strip()
+    if not sound:
+        raise RuntimeError("Ollama returned no soundscape. Use N/A only for explicitly requested complete silence.")
     return (
         f"{I2V_FIRST_FRAME_LINE}\n\n"
         f"integrated_multimodal_description: {body}\n\n"
@@ -374,9 +393,11 @@ class FlaminGalahImageDescriber:
                 "Write the H3 image-to-video shot paragraph from this source image description.\n\n"
                 f"Source image description:\n{source_description}\n\n"
                 f"User enhancement prompt:\n{extra_block}\n\n"
-                "Keep the visible people, bodies, clothes, and setting from the source. "
-                "If the user enhancement prompt is not none, add that action, camera, "
-                "and continuation after the first frame. "
+                "Begin [Shot 1] with the actual style and opening composition of <Picture 1>. "
+                "Preserve the source identity, clothing, colors, pose, lighting, setting, "
+                "key objects, and spatial relationships at 0.00 seconds. "
+                "Then describe action onset, continuous development, and the result or reaction. "
+                "Apply requested action and camera changes only after the first frame. "
                 "Output only the rewritten paragraph."
             )
 
@@ -385,7 +406,7 @@ class FlaminGalahImageDescriber:
             ollama_url,
             prompt_model,
             temperature,
-            PROMPT_WRITER_SYSTEM,
+            PROMPT_WRITER_SYSTEM if mode == "I2I" else I2V_PROMPT_WRITER_SYSTEM,
         )
 
         if mode == "I2I":
@@ -397,6 +418,9 @@ class FlaminGalahImageDescriber:
                     "in one paragraph. Include only ambient sound, physical action sounds implied "
                     "by the shot, and non-verbal human sounds. No dialogue, singing, or music.\n\n"
                     f"Shot description:\n{description}\n\n"
+                    f"User directions:\n{extra_block}\n\n"
+                    "Use N/A only if these user directions explicitly request complete silence "
+                    "throughout the video; a static or quiet image alone does not imply silence. "
                     "Output only the paragraph."
                 ),
                 ollama_url,
