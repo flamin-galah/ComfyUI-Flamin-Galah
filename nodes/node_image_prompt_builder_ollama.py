@@ -9,6 +9,7 @@ import urllib.request
 import urllib.error
 import base64
 import io
+import re
 
 try:
     import torch
@@ -27,10 +28,18 @@ I2V_FIRST_FRAME_LINE = (
 
 SHOT_OPENER = "[Shot 1] Live-action, cinematic,"
 
+SINGLE_IMAGE_RULES = """There is exactly one supplied source image; only the first image in the input batch is used.
+Do not invent or refer to additional reference images, comparison images, or an end-frame image.
+Describe all action as a continuation of that one image, not a transition to another picture.
+Use "the source image" if a reference is needed in prose; do not write numbered Picture or Image labels.
+The formatter alone adds the required first-frame reference marker for video output.
+Preserve quoted text actually visible in the image verbatim."""
+
 OLLAMA_VISION_SYSTEM = """You are a precise visual describer for image-to-video generation.
 Describe the supplied image in rich, objective detail suitable as a first-frame anchor.
 Include: overall style, lighting, composition, camera angle, subject appearance (body, face, hair, expression), clothing or lack of clothing, pose, body language, environment, key objects, textures (skin, fabric, etc.), and atmosphere.
-Be explicit and specific. Do not invent a different person, outfit, or setting. Do not add sound. Output only the description paragraph, nothing else."""
+Be explicit and specific. Do not invent a different person, outfit, or setting. Do not add sound. Output only the description paragraph, nothing else.
+""" + SINGLE_IMAGE_RULES
 
 
 def _get_ollama_models(base_url="http://localhost:11434", timeout=2.0):
@@ -127,21 +136,47 @@ def _strip_redundant_style_prefix(text):
     return text
 
 
+# Numbered labels can leak out of either model even with single-image instructions.
+# Keep literal visible text in double quotes untouched, and leave the official
+# video header to the formatter rather than rewriting it as scene prose.
+_QUOTED_TEXT_RE = re.compile(r'("(?:\\.|[^"\\])*"|“[^”]*”)')
+_IMAGE_LABEL = (
+    r"(?:reference[ \t]+)?(?:picture|image)[ \t]*#?[ \t]*"
+    r"(?:[0-9]+|one|two|three|four|five|six|seven|eight|nine|ten)(?!\w)"
+)
+_NUMBERED_IMAGE_REFERENCE_RE = re.compile(
+    r"(?<!\w)(?:(?:the|this|that|an?)[ \t]+)?(?:"
+    r"<[ \t]*" + _IMAGE_LABEL + r"[ \t]*>|"
+    r"\[[ \t]*" + _IMAGE_LABEL + r"[ \t]*\]|" + _IMAGE_LABEL + r")",
+    re.IGNORECASE,
+)
+
+
+def _normalize_single_image_references(text):
+    """Remove invented image numbering from prose, preserving quoted visible text."""
+    parts = _QUOTED_TEXT_RE.split(text or "")
+    for index in range(0, len(parts), 2):
+        parts[index] = _NUMBERED_IMAGE_REFERENCE_RE.sub("the source image", parts[index])
+    return "".join(parts)
+
+
 PROMPT_WRITER_SYSTEM = """You write MiniMax H3 shot descriptions from a source image description.
 Keep identity, clothing, body, setting, lighting, and composition from the source description.
 If the user provided an enhancement prompt, incorporate every request as action, camera movement, and continuation after the first frame.
 If there is no enhancement prompt, keep the first-frame state and add only a natural slight continuation.
-Write one continuous paragraph. No lists, no field labels, no sound, no preamble."""
+Write one continuous paragraph. No lists, no field labels, no sound, no preamble.
+""" + SINGLE_IMAGE_RULES
 
 
 I2V_PROMPT_WRITER_SYSTEM = """You write MiniMax H3 first-frame image-to-video shot descriptions.
 Write one continuous English paragraph beginning with [Shot 1]. Derive the visual style from the source image description; do not turn a 2D illustration, animation, logo, or other stylized image into live-action or photorealism.
-First anchor the opening at 0.00 seconds to <Picture 1>: establish the source style, camera angle, composition, subject identity, appearance, clothing, colors, pose, lighting, setting, key objects, and spatial relationships.
+First anchor the opening at 0.00 seconds to the one supplied source image: establish the source style, camera angle, composition, subject identity, appearance, clothing, colors, pose, lighting, setting, key objects, and spatial relationships.
 Then develop forward: first-frame anchor -> action onset -> continuous development -> result or reaction. The user enhancement specifies what happens after the unchanged first frame, not a replacement opening state.
 Preserve the source details at frame 0 even when later requested motion changes pose, viewpoint, or framing. Describe camera movement naturally, including amplitude and speed when meaningful.
 If no enhancement is supplied, retain the image's opening state and add only a slight, plausible continuation. Do not invent a different person, outfit, setting, or visual style.
 Keep any visible text verbatim in English double quotes. Do not invent dialogue.
-No lists, field labels, soundscape paragraph, music paragraph, or preamble. Do not write the image-alignment instruction; the formatter adds it separately."""
+No lists, field labels, soundscape paragraph, music paragraph, or preamble. Do not write the image-alignment instruction; the formatter adds it separately.
+""" + SINGLE_IMAGE_RULES
 
 
 SOUNDSCAPE_SYSTEM = """You write the H3 overall_soundscape field from a shot description.
@@ -149,24 +184,30 @@ Write 1–4 English sentences in one continuous paragraph covering only:
 ambient sound; physical action sounds implied by the shot; non-verbal human sounds such as breathing, laughter, or panting.
 Do not include dialogue, singing, diegetic music, or non-diegetic music.
 Do not use field labels or bullet lists.
-Use N/A only when the user explicitly requests complete silence throughout the video. A still or quiet scene alone is not a request for silence. Otherwise describe restrained ambient or physical sounds consistent with the setting and action; do not invent unrelated sound sources."""
+Use N/A only when the user explicitly requests complete silence throughout the video. A still or quiet scene alone is not a request for silence. Otherwise describe restrained ambient or physical sounds consistent with the setting and action; do not invent unrelated sound sources.
+""" + SINGLE_IMAGE_RULES
 
 
-def _format_i2v_output(description, soundscape=""):
-    """H3 image-to-video block: first-frame reference line and three fields."""
+def _strip_i2v_header(description):
+    """Remove an exact model-written copy of the official or previous header."""
     vision = (description or "").strip()
-    # Strip a model-written copy of either the official or previous header.
     legacy_header = I2V_FIRST_FRAME_LINE.replace("<Picture 1> ", "")
     lines = vision.splitlines()
     if lines and lines[0].strip() in (I2V_FIRST_FRAME_LINE, legacy_header):
         vision = "\n".join(lines[1:]).strip()
+    return vision
+
+
+def _format_i2v_output(description, soundscape=""):
+    """H3 image-to-video block: first-frame reference line and three fields."""
+    vision = _normalize_single_image_references(_strip_i2v_header(description))
     if not vision:
         raise RuntimeError("Ollama returned no first-frame shot description.")
     if vision.lower().startswith("[shot 1]"):
         body = "[Shot 1]" + vision[len("[Shot 1]"):]
     else:
         body = f"[Shot 1] {vision}"
-    sound = (soundscape or "").strip()
+    sound = _normalize_single_image_references((soundscape or "").strip())
     if not sound:
         raise RuntimeError("Ollama returned no soundscape. Use N/A only for explicitly requested complete silence.")
     return (
@@ -179,7 +220,9 @@ def _format_i2v_output(description, soundscape=""):
 
 def _format_i2i_output(description):
     """Plain text paragraph, no H3 field labels."""
-    return _strip_redundant_style_prefix((description or "").strip())
+    return _normalize_single_image_references(
+        _strip_redundant_style_prefix((description or "").strip())
+    )
 
 
 class FlaminGalahImageDescriber:
@@ -378,6 +421,7 @@ class FlaminGalahImageDescriber:
             OLLAMA_VISION_SYSTEM,
             images_b64=frames_b64,
         )
+        source_description = _normalize_single_image_references(source_description)
 
         if mode == "I2I":
             rewrite_prompt = (
@@ -393,7 +437,7 @@ class FlaminGalahImageDescriber:
                 "Write the H3 image-to-video shot paragraph from this source image description.\n\n"
                 f"Source image description:\n{source_description}\n\n"
                 f"User enhancement prompt:\n{extra_block}\n\n"
-                "Begin [Shot 1] with the actual style and opening composition of <Picture 1>. "
+                "Begin [Shot 1] with the actual style and opening composition of the one supplied source image. "
                 "Preserve the source identity, clothing, colors, pose, lighting, setting, "
                 "key objects, and spatial relationships at 0.00 seconds. "
                 "Then describe action onset, continuous development, and the result or reaction. "
@@ -408,6 +452,9 @@ class FlaminGalahImageDescriber:
             temperature,
             PROMPT_WRITER_SYSTEM if mode == "I2I" else I2V_PROMPT_WRITER_SYSTEM,
         )
+        if mode == "I2V":
+            description = _strip_i2v_header(description)
+        description = _normalize_single_image_references(description)
 
         if mode == "I2I":
             output = _format_i2i_output(description)
