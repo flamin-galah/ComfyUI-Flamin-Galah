@@ -6,7 +6,7 @@
 
 **Director-style prompt building for MiniMax H3, powered by local Ollama models or the xAI Grok API.**
 
-Turn scene directions or a reference image into structured video prompts, including visual descriptions, soundscapes, and music guidance. All three nodes are geared towards **MiniMax H3**, but the model name is intentionally omitted from their visible titles.
+Turn scene directions or a reference image into structured video prompts, including visual descriptions, soundscapes, and music guidance. All three nodes are geared towards **MiniMax H3**
 
 Every node returns one `STRING` output named **`h3_prompt`**. This pack builds prompts; it does **not** generate images or videos, install MiniMax models, or submit video-generation jobs.
 
@@ -130,6 +130,8 @@ The current dropdown contains `grok-4.7`, `grok-4.6`, `grok-4.5`, `grok-4`, and 
 
 ### Flamin Galah Prompt Director (Ollama)
 
+![Flamin Galah Prompt Director (Ollama) — example workflow](docs/prompt_director_ollama.png)
+
 Builds a prompt from scene directions and filmmaker-style controls using Ollama.
 
 - **Without an image:** writes a T2VA-style prompt.
@@ -173,6 +175,8 @@ If the writer fails, this node returns a structured text fallback and logs the f
 
 ### Flamin Galah Image Prompt Builder (Ollama)
 
+![Flamin Galah Image Prompt Builder (Ollama) — example workflow](docs/image_prompt_builder_ollama.png)
+
 Starts from a still image and uses separate Ollama vision and writing passes. It does not accept video input.
 
 1. The vision model describes the first image in the batch.
@@ -199,6 +203,8 @@ The video writer is instructed to establish the image's exact opening style, com
 This node downsizes the image sent to vision to a maximum side of 1024 pixels and encodes it as JPEG. The Prompt Director and Grok node currently use full-resolution PNGs instead.
 
 ### Flamin Galah Image Prompt Builder (Grok)
+
+![Flamin Galah Image Prompt Builder (Grok) — example workflow](docs/image_prompt_builder_grok.png)
 
 Uses the configured xAI-compatible API rather than Ollama.
 
@@ -307,24 +313,6 @@ Load Image → Flamin Galah Image Prompt Builder (Grok) → h3_prompt
 ```
 
 `h3_prompt` is text. Wire it into the appropriate text/prompt input in your generation workflow, and provide the original image separately wherever that downstream workflow requires it.
-
-## Screenshots
-
-The bundled screenshots show the current node titles and example outputs using the Flamin Galah logo as the reference image.
-
-### Prompt Director (Ollama)
-
-![Flamin Galah Prompt Director (Ollama) — example workflow](docs/prompt_director_ollama.png)
-
-### Image Prompt Builder (Ollama)
-
-![Flamin Galah Image Prompt Builder (Ollama) — example workflow](docs/image_prompt_builder_ollama.png)
-
-This screenshot was captured before the local Image to Video first-frame line was added. Current output includes the opening line shown above; the screenshot asset itself is unchanged.
-
-### Image Prompt Builder (Grok)
-
-![Flamin Galah Image Prompt Builder (Grok) — example workflow](docs/image_prompt_builder_grok.png)
 
 ## Node Python filenames
 
