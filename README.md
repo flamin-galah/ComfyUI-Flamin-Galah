@@ -19,7 +19,7 @@ All nodes appear under **Add Node → prompt → Flamin Galah**.
 | Node | Input workflow | Provider | Output |
 | --- | --- | --- | --- |
 | **Flamin Galah Prompt Director (Ollama)** | Scene fields; optional first-frame image | Ollama | H3-style T2VA or I2VA prompt |
-| **Flamin Galah Image Prompt Builder (Ollama)** | Reference image plus optional scene directions | Ollama | H3-style video fields, or a plain image-prompt paragraph |
+| **Flamin Galah Image Prompt Builder (Ollama)** | Optional `image_1`, optional `image_2`, plus scene directions | Ollama | I2V or I2I from one image, Ref2VA from both, or T2VA with no image |
 | **Flamin Galah Image Prompt Builder (Grok)** | Optional `image_1`, optional `image_2`, plus scene directions | xAI Grok API | I2VA from either image, Ref2VA from both, or T2VA with no image |
 
 **T2VA** means the pack's text-to-video-with-audio prompt mode. **I2VA** means its image-to-video-with-audio prompt mode. These labels describe prompt text, not generation performed by the nodes.

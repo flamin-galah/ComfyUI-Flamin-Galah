@@ -233,6 +233,87 @@ def _format_i2i_output(description):
     )
 
 
+
+TEXT_TO_VIDEO_SYSTEM = """You write a MiniMax H3 text-to-video shot description from the user's scene directions.
+No reference image is supplied. Build the scene from the user's text; do not refer to an uploaded image, a first-frame reference, or <Picture 1>.
+Write one continuous English paragraph beginning with [Shot 1]. Establish the requested visual style, subject appearance, composition, setting, and lighting before developing the action, camera motion, and result or reaction.
+Follow all supplied scene directions. Preserve the requested style, including animation or illustration; if no style is specified, choose a suitable cinematic style.
+If the user supplies spoken lines or lyrics, include them. Do not invent dialogue. Use (S1) and <d>[English] verbatim line.</d>.
+Output only the shot paragraph. No field labels, alignment instruction, lists, soundscape, music, or preamble."""
+
+
+REF2VA_SYSTEM = """You write a MiniMax H3 full-reference (Ref2VA) prompt from two reference images.
+The images are character or subject references, not first and last frames.
+Picture 1, the first attached image, is the source of <Subject 1>, the primary subject.
+Picture 2, the second attached image, is the source of <Subject 2>, the secondary subject.
+Do not create standalone <Picture N> lines. Cite each image only inside its subject definition.
+Output exactly these six sections, in this order, with these headers and no other preamble:
+
+subject_definitions:
+<Subject 1> is the primary subject shown in Picture 1, with the visible identity, face, hair, body, clothing, and distinctive features.
+<Subject 2> is the secondary subject shown in Picture 2, with the visible identity, face, hair, body, clothing, and distinctive features.
+
+summary:
+[reference generation] One English paragraph describing the target video and how <Subject 1> and <Subject 2> are used.
+
+retention_analysis:
+<Subject 1> (appears in [Shot 1]): fully_preserved - identity, facial features, clothing, and visual characteristics from Picture 1 are retained.
+<Subject 2> (appears in [Shot 1]): fully_preserved - identity, facial features, clothing, and visual characteristics from Picture 2 are retained.
+
+detailed_description:
+One detailed English playback description. Begin with the visual style. Then write [Shot 1]. On first appearance, restate each subject's referenced appearance, position, and action. Include user-supplied dialogue only, using (S1) and (S2) and <d>[English] verbatim line.</d>. Do not invent dialogue.
+
+overall_soundscape:
+1-4 English sentences of ambient sound, physical action sounds, and non-verbal human sounds. No dialogue or music. Use N/A only if the user explicitly requests complete silence.
+
+non_diegetic_music:
+1-3 English sentences of audience-only score, covering instrumentation, tempo, rhythm, and dynamics. Use N/A only if the user requests no music.
+
+Preserve both identities. Do not merge the two people into one. Write in English except for verbatim dialogue and visible text.
+"""
+
+
+_REF2VA_HEADERS = (
+    "subject_definitions",
+    "summary",
+    "retention_analysis",
+    "detailed_description",
+    "overall_soundscape",
+    "non_diegetic_music",
+)
+
+
+def _present_image(image):
+    if image is None:
+        return None
+    if getattr(image, "shape", (1,))[0] == 0:
+        return None
+    return image
+
+
+def _format_ref2va_output(raw):
+    text = (raw or "").strip()
+    if not text:
+        raise RuntimeError("Ollama returned an empty reference-to-video prompt.")
+    lowered = text.lower()
+    positions = []
+    for header in _REF2VA_HEADERS:
+        index = lowered.find(header + ":")
+        if index < 0:
+            raise RuntimeError(f"Ollama reference prompt is missing {header}:")
+        positions.append((index, header))
+    positions.sort()
+    chunks = {}
+    for pos, (index, header) in enumerate(positions):
+        start = index + len(header) + 1
+        end = positions[pos + 1][0] if pos + 1 < len(positions) else len(text)
+        chunks[header] = text[start:end].strip()
+    missing = [header for header in _REF2VA_HEADERS if not chunks.get(header)]
+    if missing:
+        raise RuntimeError("Ollama reference prompt has empty sections: " + ", ".join(missing))
+    return "\n\n".join(f"{header}:\n{chunks[header]}" for header in _REF2VA_HEADERS)
+
+
 class FlaminGalahImageDescriber:
 
     @classmethod
@@ -241,7 +322,6 @@ class FlaminGalahImageDescriber:
 
         return {
             "required": {
-                "image": ("IMAGE",),
                 "output_mode": (["Image to Video", "Image to Image"], {
                     "default": "Image to Video"
                 }),
@@ -251,6 +331,8 @@ class FlaminGalahImageDescriber:
                 }),
             },
             "optional": {
+                "image_1": ("IMAGE",),
+                "image_2": ("IMAGE",),
                 "ollama_url": ("STRING", {
                     "default": "http://localhost:11434"
                 }),
@@ -282,8 +364,9 @@ class FlaminGalahImageDescriber:
 
     DESCRIPTION = (
         "Flamin Galah Image Prompt Builder (Ollama) – "
-        "local Ollama only. Vision model describes the image; "
-        "prompt model writes I2V (H3 image-to-video fields) or I2I (plain paragraph)."
+        "local Ollama only. Runs with image_1, image_2, both, or none. "
+        "One image writes I2V or I2I. Both images write Ref2VA, or a two-subject I2I paragraph. "
+        "No image writes T2VA, or a plain paragraph, from extra_description."
     )
 
     def _call_ollama(
@@ -381,9 +464,10 @@ class FlaminGalahImageDescriber:
 
     def generate(
         self,
-        image,
         output_mode="Image to Video",
         extra_description="",
+        image_1=None,
+        image_2=None,
         ollama_url="http://localhost:11434",
         vision_model="",
         prompt_model="",
@@ -391,14 +475,8 @@ class FlaminGalahImageDescriber:
         temperature=0.2,
         lora_tag="",
     ):
-        if image is None:
-            raise RuntimeError("Connect an IMAGE. This node only describes a provided still.")
-
-        frames_b64 = [_tensor_to_base64_png(image)]
-
         if not prompt_model and enhance_model:
             prompt_model = enhance_model
-
         if not vision_model or not prompt_model:
             models = _get_ollama_models(ollama_url)
             fallback = models[0] if models else ""
@@ -408,13 +486,29 @@ class FlaminGalahImageDescriber:
                 prompt_model = vision_model or fallback
 
         raw = (output_mode or "Image to Video").strip().lower()
-        if raw in ("i2i", "image to image", "t2i", "t2t"):
-            mode = "I2I"
-        else:
-            mode = "I2V"
-
+        mode = "I2I" if raw in ("i2i", "image to image", "t2i", "t2t") else "I2V"
         extra = (extra_description or "").strip()
         extra_block = extra if extra else "(none)"
+        primary = _present_image(image_1)
+        secondary = _present_image(image_2)
+
+        if primary is None and secondary is None:
+            if not extra:
+                raise RuntimeError(
+                    "Connect image_1, image_2, or both, or enter scene directions in extra_description."
+                )
+            output = self._generate_text_only(
+                mode, extra, extra_block, ollama_url, prompt_model, temperature
+            )
+            return (self._append_lora(output, lora_tag),)
+        if primary is not None and secondary is not None:
+            output = self._generate_two_images(
+                mode, primary, secondary, extra, extra_block, ollama_url, vision_model, prompt_model, temperature
+            )
+            return (self._append_lora(output, lora_tag),)
+
+        image = primary if primary is not None else secondary
+        frames_b64 = [_tensor_to_base64_png(image)]
 
         source_description = self._call_ollama(
             (
@@ -499,10 +593,105 @@ class FlaminGalahImageDescriber:
             )
             output = _format_i2v_output(description, soundscape, music)
 
+        return (self._append_lora(output, lora_tag),)
+
+    def _append_lora(self, output, lora_tag):
         lora = (lora_tag or "").strip()
         if lora:
-            output += f"\n\nLoRA tag: {lora}"
-        return (output,)
+            return f"{output}\n\nLoRA tag: {lora}"
+        return output
+
+    def _generate_text_only(self, mode, extra, extra_block, ollama_url, prompt_model, temperature):
+        if mode == "I2I":
+            return self._call_ollama(
+                (
+                    "Write a single image-prompt paragraph from these directions. "
+                    "No reference image is supplied. Do not mention an uploaded image.\n\n"
+                    f"Directions:\n{extra}\n\n"
+                    "Output only the paragraph."
+                ),
+                ollama_url,
+                prompt_model,
+                temperature,
+                "You write a plain image prompt paragraph. No field labels or preamble.",
+            )
+        description = self._call_ollama(
+            (
+                "Write one H3 text-to-video shot paragraph from these scene directions. "
+                "No image is supplied.\n\n"
+                f"Scene directions:\n{extra}\n\n"
+                "Output only the shot paragraph."
+            ),
+            ollama_url,
+            prompt_model,
+            temperature,
+            TEXT_TO_VIDEO_SYSTEM,
+        )
+        soundscape = self._call_ollama(
+            (
+                "From this shot description, write overall_soundscape as 1-4 English sentences. "
+                "No dialogue, singing, or music. Use N/A only for explicitly requested complete silence.\n\n"
+                f"Shot description:\n{description}\n\nUser directions:\n{extra_block}\n\n"
+                "Output only the paragraph."
+            ),
+            ollama_url,
+            prompt_model,
+            temperature,
+            SOUNDSCAPE_SYSTEM,
+        )
+        music = self._call_ollama(
+            (
+                "From this shot description, write non_diegetic_music as 1-3 English sentences. "
+                "Output N/A only if the user requests no music.\n\n"
+                f"Shot description:\n{description}\n\nUser directions:\n{extra_block}\n\n"
+                "Output only the music paragraph or N/A."
+            ),
+            ollama_url,
+            prompt_model,
+            temperature,
+            MUSIC_SYSTEM,
+        )
+        body = description.strip()
+        if not body.lower().startswith("[shot 1]"):
+            body = f"[Shot 1] {body}"
+        return (
+            f"integrated_multimodal_description: {body}\n\n"
+            f"overall_soundscape: {soundscape.strip()}\n\n"
+            f"non_diegetic_music: {music.strip() or 'N/A'}"
+        )
+
+    def _generate_two_images(self, mode, primary, secondary, extra, extra_block, ollama_url, vision_model, prompt_model, temperature):
+        frames = [_tensor_to_base64_png(primary), _tensor_to_base64_png(secondary)]
+        if mode == "I2I":
+            return self._call_ollama(
+                (
+                    "The first image is the primary subject and the second is the secondary subject. "
+                    "Write one image-prompt paragraph that keeps both identities, clothing, and visual traits. "
+                    "Do not merge them into one person.\n\n"
+                    f"User directions:\n{extra_block}\n\n"
+                    "Output only the paragraph."
+                ),
+                ollama_url,
+                vision_model,
+                temperature,
+                "You write a plain two-subject image prompt. No field labels or preamble.",
+                images_b64=frames,
+            )
+        raw = self._call_ollama(
+            (
+                "The first image is Picture 1, the primary subject reference. "
+                "The second image is Picture 2, the secondary subject reference. "
+                "Write the six-section H3 Ref2VA prompt. Do not use standalone Picture lines.\n\n"
+                f"User directions:\n{extra_block}\n\n"
+                "Output only the six sections."
+            ),
+            ollama_url,
+            vision_model,
+            temperature,
+            REF2VA_SYSTEM,
+            images_b64=frames,
+        )
+        return _format_ref2va_output(raw)
 
 
 NODE_CLASS_MAPPINGS = {
