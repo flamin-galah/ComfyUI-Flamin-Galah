@@ -20,7 +20,7 @@ All nodes appear under **Add Node → prompt → Flamin Galah**.
 | --- | --- | --- | --- |
 | **Flamin Galah Prompt Director (Ollama)** | Scene fields; optional first-frame image | Ollama | H3-style T2VA or I2VA prompt |
 | **Flamin Galah Image Prompt Builder (Ollama)** | Reference image plus optional scene directions | Ollama | H3-style video fields, or a plain image-prompt paragraph |
-| **Flamin Galah Image Prompt Builder (Grok)** | Optional `image_1`, optional `image_2`, plus scene directions | xAI Grok API | I2VA from `image_1`, official Ref2VA from both images, or T2VA with no image |
+| **Flamin Galah Image Prompt Builder (Grok)** | Optional `image_1`, optional `image_2`, plus scene directions | xAI Grok API | I2VA from either image, Ref2VA from both, or T2VA with no image |
 
 **T2VA** means the pack's text-to-video-with-audio prompt mode. **I2VA** means its image-to-video-with-audio prompt mode. These labels describe prompt text, not generation performed by the nodes.
 
@@ -208,16 +208,16 @@ This node downsizes the image sent to vision to a maximum side of 1024 pixels an
 
 Uses the configured xAI-compatible API rather than Ollama.
 
-1. With only `image_1` connected, describes the first batch item, then rewrites it when `extra_description` is non-empty.
-2. With `image_1` and `image_2` connected, writes an official H3 full-reference prompt. The two stills are subject references, not first and last frames.
+1. With either `image_1` or `image_2` connected, describes that still, then rewrites it when `extra_description` is non-empty.
+2. With both `image_1` and `image_2` connected, writes an official H3 full-reference prompt. The two stills are subject references, not first and last frames.
 3. With no image, writes a T2VA shot from `extra_description`. Text-only mode requires that field.
 4. One-image and text-only paths generate a soundscape and a non-diegetic music line. Music is `N/A` only when the user asks for no music.
 5. Returns an I2VA block for one image, a six-section Ref2VA block for two images, or a T2VA block when no image is connected.
 
 | Input | Purpose |
 | --- | --- |
-| `image_1` | Optional `IMAGE`. Primary still, or Picture 1 subject source when `image_2` is connected. Only batch item 0 is used. |
-| `image_2` | Optional second `IMAGE`. Picture 2 subject source. Requires `image_1`. |
+| `image_1` | Optional `IMAGE`. Alone, an I2VA still. With `image_2`, the Picture 1 subject source. Only batch item 0 is used. |
+| `image_2` | Optional `IMAGE`. Alone, an I2VA still. With `image_1`, the Picture 2 subject source. Only batch item 0 is used. |
 | `extra_description` | Additional action, camera direction, or continuation; empty by default. |
 | `api_key` | Optional widget key; otherwise resolved from the environment. |
 | `grok_url` | API endpoint; use only a trusted destination. |

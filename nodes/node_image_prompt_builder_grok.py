@@ -248,9 +248,9 @@ class FlaminGalahGrokImageDescriber:
 
     DESCRIPTION = (
         "Flamin Galah Image Prompt Builder (Grok) – "
-        "with image_1, builds an H3 I2VA prompt using the xAI Grok API. "
-        "With image_1 and image_2, builds an H3 Ref2VA subject-reference prompt. "
-        "Without an image, builds a T2VA prompt from extra_description."
+        "runs with image_1, image_2, both, or neither. "
+        "One image builds an H3 I2VA prompt. Both images build an H3 Ref2VA prompt. "
+        "No image builds a T2VA prompt from extra_description."
     )
 
 
@@ -368,11 +368,13 @@ class FlaminGalahGrokImageDescriber:
         temperature=0.2,
     ):
         extra = (extra_description or "").strip()
-        if image_2 is not None and image_1 is None:
-            raise RuntimeError("Connect the primary reference to image_1 before image_2.")
-        if image_1 is None and not extra:
+        if image_1 is not None and getattr(image_1, "shape", (1,))[0] == 0:
+            image_1 = None
+        if image_2 is not None and getattr(image_2, "shape", (1,))[0] == 0:
+            image_2 = None
+        if image_1 is None and image_2 is None and not extra:
             raise RuntimeError(
-                "Connect image_1 or enter scene directions in extra_description. "
+                "Connect image_1, image_2, or both, or enter scene directions in extra_description. "
                 "Text-to-video requires a non-empty description."
             )
         if image_1 is not None and image_2 is not None:
@@ -382,8 +384,9 @@ class FlaminGalahGrokImageDescriber:
 
         key = self._resolve_key(api_key)
         model = grok_model or GROK_MODELS[0]
+        single_image = image_1 if image_1 is not None else image_2
 
-        if image_1 is None:
+        if single_image is None:
             description = self._call_grok(
                 key,
                 grok_url,
@@ -430,7 +433,7 @@ class FlaminGalahGrokImageDescriber:
             )
             return (_format_t2va_output(description, soundscape, music),)
 
-        data_url = _tensor_to_data_url(image_1)
+        data_url = _tensor_to_data_url(single_image)
         description = self._call_grok(
             key,
             grok_url,
