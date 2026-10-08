@@ -20,7 +20,7 @@ All nodes appear under **Add Node → prompt → Flamin Galah**.
 | --- | --- | --- | --- |
 | **Flamin Galah Prompt Director (Ollama)** | Scene fields; optional first-frame image | Ollama | H3-style T2VA or I2VA prompt |
 | **Flamin Galah Image Prompt Builder (Ollama)** | Reference image plus optional scene directions | Ollama | H3-style video fields, or a plain image-prompt paragraph |
-| **Flamin Galah Image Prompt Builder (Grok)** | Reference image plus optional scene directions | xAI Grok API | H3-style I2VA prompt with first-frame reference line |
+| **Flamin Galah Image Prompt Builder (Grok)** | Optional `image_1`, optional `image_2`, plus scene directions | xAI Grok API | I2VA from `image_1`, official Ref2VA from both images, or T2VA with no image |
 
 **T2VA** means the pack's text-to-video-with-audio prompt mode. **I2VA** means its image-to-video-with-audio prompt mode. These labels describe prompt text, not generation performed by the nodes.
 
@@ -194,7 +194,7 @@ Starts from a still image and uses separate Ollama vision and writing passes. It
 | `ollama_url` | Defaults to `http://localhost:11434`. |
 | `lora_tag` | Optional text appended as a `LoRA tag:` section. |
 
-**Image to Video output:** starts with `For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced.`, followed by one blank line and the three H3-style fields with `non_diegetic_music: N/A`. The formatter adds this line deterministically and ensures the description starts with `[Shot 1]`. It preserves the writer's source-derived style instead of forcing a live-action prefix.
+**Image to Video output:** starts with `For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced.`, followed by one blank line and the three H3 fields. The formatter adds the reference line and a `[Shot 1]` prefix. It does not inject a live-action style. `non_diegetic_music` is written from the shot unless the user asks for no music.
 
 **Image to Image output:** a plain prompt paragraph rather than the three video fields. It still uses the output socket named `h3_prompt`.
 
@@ -208,14 +208,16 @@ This node downsizes the image sent to vision to a maximum side of 1024 pixels an
 
 Uses the configured xAI-compatible API rather than Ollama.
 
-1. Uploads the first image in the batch for visual description.
-2. If `extra_description` is non-empty, rewrites the description to incorporate the requested continuation.
-3. Generates a soundscape from the final description.
-4. Returns an I2VA-style block with the first-frame-reference line and `non_diegetic_music: N/A`.
+1. With only `image_1` connected, describes the first batch item, then rewrites it when `extra_description` is non-empty.
+2. With `image_1` and `image_2` connected, writes an official H3 full-reference prompt. The two stills are subject references, not first and last frames.
+3. With no image, writes a T2VA shot from `extra_description`. Text-only mode requires that field.
+4. One-image and text-only paths generate a soundscape and a non-diegetic music line. Music is `N/A` only when the user asks for no music.
+5. Returns an I2VA block for one image, a six-section Ref2VA block for two images, or a T2VA block when no image is connected.
 
 | Input | Purpose |
 | --- | --- |
-| `image` | Required `IMAGE`; only batch item 0 is used. |
+| `image_1` | Optional `IMAGE`. Primary still, or Picture 1 subject source when `image_2` is connected. Only batch item 0 is used. |
+| `image_2` | Optional second `IMAGE`. Picture 2 subject source. Requires `image_1`. |
 | `extra_description` | Additional action, camera direction, or continuation; empty by default. |
 | `api_key` | Optional widget key; otherwise resolved from the environment. |
 | `grok_url` | API endpoint; use only a trusted destination. |
@@ -257,7 +259,32 @@ integrated_multimodal_description: [Shot 1] The scene begins from the supplied s
 
 overall_soundscape: Soft fabric movement and quiet room ambience.
 
-non_diegetic_music: N/A
+non_diegetic_music: Sparse piano notes at a slow tempo, joined by a soft sustained pad that fades at the end.
+```
+
+
+Two-image output uses MiniMax H3 full-reference sections, not bracketed production headings. Character stills are cited inside `<Subject 1>` and `<Subject 2>`; standalone `<Picture N>` lines are reserved for concrete frame anchors.
+
+```text
+subject_definitions:
+<Subject 1> is the primary subject shown in Picture 1, with that still's face, hair, clothing, and distinctive features.
+<Subject 2> is the secondary subject shown in Picture 2, with that still's face, hair, clothing, and distinctive features.
+
+summary:
+[reference generation] <Subject 1> and <Subject 2> meet in the requested scene while both identities stay intact.
+
+retention_analysis:
+<Subject 1> (appears in [Shot 1]): fully_preserved - identity, facial features, clothing, and visual characteristics from Picture 1 are retained.
+<Subject 2> (appears in [Shot 1]): fully_preserved - identity, facial features, clothing, and visual characteristics from Picture 2 are retained.
+
+detailed_description:
+[Shot 1] ...
+
+overall_soundscape:
+...
+
+non_diegetic_music:
+...
 ```
 
 ### Ollama Image Prompt Builder video output
@@ -271,7 +298,7 @@ integrated_multimodal_description: [Shot 1] 2D vector illustration. The pink coc
 
 overall_soundscape: Soft feather rustling accompanies the crest movement over a faint airy background.
 
-non_diegetic_music: N/A
+non_diegetic_music: A light mallet pattern at a moderate tempo, thinning out as the push-in ends.
 ```
 
 These examples illustrate the pack's intended format. See [MiniMax's official base prompt guide](https://huggingface.co/MiniMaxAI/MiniMax-H3/blob/main/docs/VIDEO_PROMPT_WRITING_GUIDE_base_en.md), especially sections 2.1, 3.1, 4.1, and 4.6, and the [ComfyUI H3 prompt guide](https://docs.comfy.org/tutorials/video/minimax/minimax-h3-prompt-guide). Image to Image mode remains a plain paragraph with no first-frame line. Populated LoRA fields append an extra section, so leave them blank if your downstream consumer expects only the reference line and three fields. Model-generated content still needs review against the actual image; correct structure alone does not guarantee visual fidelity.
@@ -353,7 +380,7 @@ The local video header now includes the required `<Picture 1>` marker, source-im
 | Output contains Markdown or unexpected text | Inspect and clean it before use. Formatting validation is not exhaustive; the local image node can also accept reasoning text if final content is empty. |
 | Image-based director result does not match the still | Check console warnings: the node can continue after a vision failure without an image-description anchor. |
 | Local video output has no first-frame line | Install the updated `node_image_prompt_builder_ollama.py`, restart ComfyUI, select Image to Video, and rerun the node. Image to Image intentionally has no header. |
-| Local video output changes an illustration into live-action | Install the first-frame conformance update and rerun. The video formatter no longer injects a live-action prefix; also verify the selected models describe and preserve the source style. |
+| Local video output changes an illustration into live-action | Install the first-frame conformance update and rerun. The video formatter does not inject a live-action prefix; also verify the selected models describe and preserve the source style. |
 | Local video soundscape is `N/A` without a silence request | Rerun or correct the generated soundscape. The writer is instructed to reserve `N/A` for explicitly requested complete silence, but the model's semantic choice is not independently validated. |
 | Strict parser rejects the output | Leave LoRA fields blank and check for code fences or extra sections. |
 | Large images fail on the cloud path | Resize the input before sending it. Full-resolution PNG uploads are not currently size-checked by the node. |

@@ -26,8 +26,6 @@ I2V_FIRST_FRAME_LINE = (
     "<Picture 1> (from [Shot 1]) is fully referenced."
 )
 
-SHOT_OPENER = "[Shot 1] Live-action, cinematic,"
-
 SINGLE_IMAGE_RULES = """There is exactly one supplied source image; only the first image in the input batch is used.
 Do not invent or refer to additional reference images, comparison images, or an end-frame image.
 Describe all action as a continuation of that one image, not a transition to another picture.
@@ -174,8 +172,10 @@ First anchor the opening at 0.00 seconds to the one supplied source image: estab
 Then develop forward: first-frame anchor -> action onset -> continuous development -> result or reaction. The user enhancement specifies what happens after the unchanged first frame, not a replacement opening state.
 Preserve the source details at frame 0 even when later requested motion changes pose, viewpoint, or framing. Describe camera movement naturally, including amplitude and speed when meaningful.
 If no enhancement is supplied, retain the image's opening state and add only a slight, plausible continuation. Do not invent a different person, outfit, setting, or visual style.
-Keep any visible text verbatim in English double quotes. Do not invent dialogue.
-No lists, field labels, soundscape paragraph, music paragraph, or preamble. Do not write the image-alignment instruction; the formatter adds it separately.
+Keep any visible text verbatim in English double quotes.
+If the user supplies spoken lines or lyrics, include them in this paragraph. Do not invent dialogue or singing. On the first vocalization assign a stable speaker id such as (S1). Put identity, delivery, and the id outside the tag. Inside the tag put only the language label and the verbatim line, for example: The woman with a low voice (S1) says: <d>[English] exact user line.</d>
+Diegetic music the characters can hear also belongs in this paragraph. Do not write the overall_soundscape or non_diegetic_music fields.
+No lists, field labels, or preamble. Do not write the image-alignment instruction; the formatter adds it separately.
 """ + SINGLE_IMAGE_RULES
 
 
@@ -188,6 +188,13 @@ Use N/A only when the user explicitly requests complete silence throughout the v
 """ + SINGLE_IMAGE_RULES
 
 
+MUSIC_SYSTEM = """You write the H3 non_diegetic_music field.
+Write 1-3 English sentences describing background music the characters cannot hear. Cover instrumentation, tempo, rhythm, and dynamic change. Do not use abstract mood words or explain the emotional purpose of the score.
+If the user names a score, follow that. If the user explicitly requests no music, output N/A. Otherwise write a concrete score that fits the shot's pace and setting.
+Do not repeat dialogue, singing, or diegetic music. No field label, no bullet list.
+"""
+
+
 def _strip_i2v_header(description):
     """Remove an exact model-written copy of the official or previous header."""
     vision = (description or "").strip()
@@ -198,7 +205,7 @@ def _strip_i2v_header(description):
     return vision
 
 
-def _format_i2v_output(description, soundscape=""):
+def _format_i2v_output(description, soundscape="", music=""):
     """H3 image-to-video block: first-frame reference line and three fields."""
     vision = _normalize_single_image_references(_strip_i2v_header(description))
     if not vision:
@@ -210,11 +217,12 @@ def _format_i2v_output(description, soundscape=""):
     sound = _normalize_single_image_references((soundscape or "").strip())
     if not sound:
         raise RuntimeError("Ollama returned no soundscape. Use N/A only for explicitly requested complete silence.")
+    score = (music or "").strip() or "N/A"
     return (
         f"{I2V_FIRST_FRAME_LINE}\n\n"
         f"integrated_multimodal_description: {body}\n\n"
         f"overall_soundscape: {sound}\n\n"
-        "non_diegetic_music: N/A"
+        f"non_diegetic_music: {score}"
     )
 
 
@@ -475,7 +483,21 @@ class FlaminGalahImageDescriber:
                 temperature,
                 SOUNDSCAPE_SYSTEM,
             )
-            output = _format_i2v_output(description, soundscape)
+            music = self._call_ollama(
+                (
+                    "From this shot description, write non_diegetic_music as 1-3 English sentences. "
+                    "Describe instrumentation, tempo, rhythm, and dynamic change. "
+                    "No mood words. Output N/A only if the user directions explicitly request no music.\n\n"
+                    f"Shot description:\n{description}\n\n"
+                    f"User directions:\n{extra_block}\n\n"
+                    "Output only the music paragraph or N/A."
+                ),
+                ollama_url,
+                prompt_model,
+                temperature,
+                MUSIC_SYSTEM,
+            )
+            output = _format_i2v_output(description, soundscape, music)
 
         lora = (lora_tag or "").strip()
         if lora:
