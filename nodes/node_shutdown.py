@@ -1,6 +1,15 @@
 import subprocess
 
 class FlaminGalahShutdown:
+    """Pass-through node that can shut down or reboot the computer (Windows).
+    To cancel a pending shutdown or reboot, open a Command Prompt and run: shutdown -a
+    """
+
+    DESCRIPTION = (
+        "Pass-through shutdown/reboot node (Windows). "
+        "To cancel a pending shutdown or reboot, open a Command Prompt and run: shutdown -a"
+    )
+
     @classmethod
     def INPUT_TYPES(cls):
         return {

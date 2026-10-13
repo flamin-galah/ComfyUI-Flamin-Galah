@@ -34,6 +34,7 @@ Pass-through node for the end of a workflow (for example after a video save). Wh
 - **delay_seconds** — 10 to 86400 (default 60)
 - Windows only. Requires the process to have permission to run `shutdown`.
 - Appears under **Add Node → System**.
+- To cancel a pending shutdown or reboot, open a Command Prompt and run: `shutdown -a`
 
 ## Installation
 
