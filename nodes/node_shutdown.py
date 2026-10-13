@@ -1,6 +1,6 @@
 import subprocess
 
-class ShutdownComputer:
+class FlaminGalahShutdown:
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -30,5 +30,5 @@ class ShutdownComputer:
 
         return (trigger,)
 
-NODE_CLASS_MAPPINGS = {"ShutdownComputer": ShutdownComputer}
-NODE_DISPLAY_NAME_MAPPINGS = {"ShutdownComputer": "Flamin Galah Shutdown"}
+NODE_CLASS_MAPPINGS = {"FlaminGalahShutdown": FlaminGalahShutdown}
+NODE_DISPLAY_NAME_MAPPINGS = {"FlaminGalahShutdown": "Flamin Galah Shutdown"}
