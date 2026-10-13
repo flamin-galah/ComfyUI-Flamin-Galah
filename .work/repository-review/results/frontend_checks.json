@@ -1,0 +1,55 @@
+{
+  "summary": {
+    "PASS": 4,
+    "FAIL": 5,
+    "ERROR": 0
+  },
+  "environment": "Mock DOM and ComfyUI; restore algorithms simulated from published upstream issue",
+  "checks": [
+    {
+      "name": "Extension registration",
+      "status": "PASS",
+      "evidence": "FlaminGalah.Nodes"
+    },
+    {
+      "name": "Branding preserves backend registry ID",
+      "status": "FAIL",
+      "evidence": "{\"cnr_id\":\"Flamin Galah\",\"aux_id\":\"Flamin Galah\",\"ver\":\"1.0.9\"}\n+ actual - expected\n\n+ 'Flamin Galah'\n- 'flamin-galah'\n"
+    },
+    {
+      "name": "Branding preserves backend repository identifier and version",
+      "status": "FAIL",
+      "evidence": "{\"cnr_id\":\"Flamin Galah\",\"aux_id\":\"Flamin Galah\",\"ver\":\"1.0.9\"}\n+ actual - expected\n\n+ 'Flamin Galah'\n- 'flamin-galah/ComfyUI-Flamin-Galah'\n"
+    },
+    {
+      "name": "Node-definition hook preserves source metadata",
+      "status": "FAIL",
+      "evidence": "{\"name\":\"FlaminGalahImageDescriber\",\"cnr_id\":\"Flamin Galah\",\"python_module\":\"custom_nodes.ComfyUI-Flamin-Galah\"}\n+ actual - expected\n\n+ 'Flamin Galah'\n- 'flamin-galah'\n"
+    },
+    {
+      "name": "Pills retain source widget and serialize no UI-only value",
+      "status": "PASS",
+      "evidence": "Leading UI-only widget, original source widget retained"
+    },
+    {
+      "name": "Pill click updates source value and canvas",
+      "status": "PASS",
+      "evidence": "Image to Image pill updates the underlying widget"
+    },
+    {
+      "name": "Legacy frontend indexed save/load preserves values (version-dependent)",
+      "status": "FAIL",
+      "evidence": "Serialized=[null,\"Image to Image\",\"A bird tilts its head\",\"http://localhost:11434\",\"qwen2.5vl\",\"llama3.2\",0.2,\"\"]; restored=[[\"output_mode_pills\",\"Image to Video\"],[\"output_mode\",null],[\"extra_description\",\"Image to Image\"],[\"ollama_url\",\"A bird tilts its head\"],[\"vision_model\",\"http://localhost:11434\"],[\"prompt_model\",\"qwen2.5vl\"],[\"temperature\",\"llama3.2\"],[\"lora_tag\",0.2]]\n+ actual - expected\n\n+ null\n- 'Image to Image'\n"
+    },
+    {
+      "name": "Fixed full-index frontend save/load preserves values (simulation)",
+      "status": "PASS",
+      "evidence": "Current documented full-index restore loop preserves values"
+    },
+    {
+      "name": "Indexed workflow made without pills loads into pill UI (compatibility risk)",
+      "status": "FAIL",
+      "evidence": "Workflow without leading pill slot restores output_mode=\"A bird tilts its head\"\n+ actual - expected\n\n+ 'A bird tilts its head'\n- 'Image to Video'\n"
+    }
+  ]
+}

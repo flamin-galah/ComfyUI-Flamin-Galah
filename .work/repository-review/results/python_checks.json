@@ -1,0 +1,129 @@
+{
+  "summary": {
+    "PASS": 14,
+    "FAIL": 10,
+    "ERROR": 0
+  },
+  "checks": [
+    {
+      "name": "Python syntax",
+      "status": "PASS",
+      "evidence": "5 Python files parsed successfully"
+    },
+    {
+      "name": "Valid registry project name",
+      "status": "FAIL",
+      "evidence": "Project name 'Flamin Galah' contains spaces and is not a valid registry ID"
+    },
+    {
+      "name": "Package imports and node registrations",
+      "status": "PASS",
+      "evidence": "Three node IDs, display names, STRING outputs, and h3_prompt output names are consistent"
+    },
+    {
+      "name": "Schema-to-function compatibility",
+      "status": "PASS",
+      "evidence": "All required and optional schema inputs have matching generate parameters"
+    },
+    {
+      "name": "Local I2V header and illustrated source style",
+      "status": "PASS",
+      "evidence": "For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced.\n\nintegrated_multimodal_description: [Shot 1] 2D vector illustration of a bird.\n\noverall_soundscape: Soft feather rustle.\n\nnon_diegetic_music: N/A"
+    },
+    {
+      "name": "Local I2V duplicate header removal",
+      "status": "PASS",
+      "evidence": "For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced.\n\nintegrated_multimodal_description: [Shot 1] A bird.\n\noverall_soundscape: Wing rustle.\n\nnon_diegetic_music: N/A"
+    },
+    {
+      "name": "Local I2V rejects empty visual description",
+      "status": "PASS",
+      "evidence": "Rejected as expected: Ollama returned no first-frame shot description."
+    },
+    {
+      "name": "Local I2V rejects empty soundscape",
+      "status": "PASS",
+      "evidence": "Rejected as expected: Ollama returned no soundscape. Use N/A only for explicitly requested complete silence."
+    },
+    {
+      "name": "Grok preserves illustrated source style",
+      "status": "FAIL",
+      "evidence": "For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced.\n\nintegrated_multimodal_description: [Shot 1] Live-action, cinematic, 2D vector illustration of a bird logo.\n\noverall_soundscape: Feather rustling.\n\nnon_diegetic_music: N/A"
+    },
+    {
+      "name": "Grok emits one Shot 1 marker in description",
+      "status": "FAIL",
+      "evidence": "[Shot 1] Live-action, cinematic, [Shot 1] 2D illustration of a bird."
+    },
+    {
+      "name": "Director honors selected duration",
+      "status": "FAIL",
+      "evidence": "integrated_multimodal_description: [Shot 1] A person walks. The shot lasts about 5 seconds.\n\n\noverall_soundscape: Footsteps.\n\n\nnon_diegetic_music: N/A"
+    },
+    {
+      "name": "Director inserts missing duration",
+      "status": "PASS",
+      "evidence": "integrated_multimodal_description: [Shot 1] A person walks. The shot lasts about 10 seconds.\n\n\noverall_soundscape: natural ambient sound matching the scene\n\n\nnon_diegetic_music: N/A"
+    },
+    {
+      "name": "Director removes unlabelled dialogue when disabled",
+      "status": "FAIL",
+      "evidence": "integrated_multimodal_description: [Shot 1] A person says <d>Hello</d>. The shot lasts about 5 seconds.\n\n\noverall_soundscape: natural ambient sound matching the scene\n\n\nnon_diegetic_music: N/A"
+    },
+    {
+      "name": "Director removes labelled visual dialogue when disabled",
+      "status": "PASS",
+      "evidence": "integrated_multimodal_description: [Shot 1] A person says. The shot lasts about 5 seconds.\n\n\noverall_soundscape: natural ambient sound matching the scene\n\n\nnon_diegetic_music: N/A"
+    },
+    {
+      "name": "Director inserts other-language dialogue exactly once",
+      "status": "FAIL",
+      "evidence": "integrated_multimodal_description: [Shot 1] A person says <d>Hello</d>. The shot lasts about 5 seconds. The subject speaks clearly: <d>Hello</d>.\n\n\noverall_soundscape: natural ambient sound matching the scene\n\n\nnon_diegetic_music: N/A"
+    },
+    {
+      "name": "Director removes soundscape dialogue when disabled",
+      "status": "FAIL",
+      "evidence": "integrated_multimodal_description: [Shot 1] A person walks. The shot lasts about 5 seconds.\n\n\noverall_soundscape: <d>[English] Hello</d>\n\n\nnon_diegetic_music: N/A"
+    },
+    {
+      "name": "Director rejects image path without successful vision",
+      "status": "FAIL",
+      "evidence": "Returned apparently successful I2VA output after vision failure; writer images=None; image description supplied=False; output='For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced.\\n\\nintegrated_multimodal_description: [Shot 1] A person walks. The shot lasts about 5 seconds.\\n\\n\\noverall_soundscape: Footsteps.\\n\\n\\nnon_diegetic_music: N/A'"
+    },
+    {
+      "name": "Director offline text fallback has required structure",
+      "status": "PASS",
+      "evidence": "integrated_multimodal_description: [Shot 1] photorealistic, soft light. A static wide shot. A person walks across a room. The shot lasts about 5 seconds.\n\n\noverall_soundscape: natural ambient sound matching the scene\n\n\nnon_diegetic_music: N/A"
+    },
+    {
+      "name": "Local model rejects reasoning-only response",
+      "status": "FAIL",
+      "evidence": "Reasoning-only response was accepted as final output; actual result: 'I need to inspect the image and decide what to describe.'"
+    },
+    {
+      "name": "Grok rejects missing API key",
+      "status": "PASS",
+      "evidence": "Rejected as expected: No Grok API key. Paste an xAI key into api_key, or set XAI_API_KEY."
+    },
+    {
+      "name": "Grok key precedence",
+      "status": "PASS",
+      "evidence": "Widget > XAI_API_KEY > GROK_API_KEY; all keys are fake"
+    },
+    {
+      "name": "Ollama fallbacks offer correct official Qwen tag",
+      "status": "FAIL",
+      "evidence": "{\"flamin_review.nodes.node_prompt_director_ollama\": [\"(Ollama not running \\u2013 start it and refresh)\", \"llama3.2\", \"llama3.1\", \"llava\", \"llava:13b\", \"qwen2.5-vl\", \"qwen2.5\", \"mistral\", \"gemma2\", \"phi3\"], \"flamin_review.nodes.node_image_prompt_builder_ollama\": [\"(Ollama not running \\u2013 start it and refresh)\", \"llava\", \"llava:13b\", \"qwen2.5-vl\", \"llama3.2-vision\", \"llama3.2\", \"llama3.1\", \"qwen2.5\", \"mistral\", \"gemma2\", \"phi3\"]}"
+    },
+    {
+      "name": "Mocked local Image to Video pipeline",
+      "status": "PASS",
+      "evidence": "Image to Video: 3 calls; only first call has image; output=For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced.\n\nintegrated_multimodal_description: [Shot 1] 2D bird illustration; the bird gently tilts its head.\n\noverall_soundscape: Soft feather rustling.\n\nnon_diegetic_music: N/A"
+    },
+    {
+      "name": "Mocked local Image to Image pipeline",
+      "status": "PASS",
+      "evidence": "Image to Image: 2 calls; only first call has image; output=A 2D bird illustration."
+    }
+  ]
+}

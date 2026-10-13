@@ -14,15 +14,26 @@ Every node returns one `STRING` output named **`h3_prompt`**. This pack builds p
 
 ## Nodes at a glance
 
-All nodes appear under **Add Node → prompt → Flamin Galah**.
+Prompt nodes appear under **Add Node → prompt → Flamin Galah**. The shutdown node appears under **Add Node → System**.
 
 | Node | Input workflow | Provider | Output |
 | --- | --- | --- | --- |
 | **Flamin Galah Prompt Director (Ollama)** | Scene fields; optional first-frame image | Ollama | H3-style T2VA or I2VA prompt |
 | **Flamin Galah Image Prompt Builder (Ollama)** | Optional `image_1`, optional `image_2`, plus scene directions | Ollama | I2V or I2I from one image, Ref2VA from both, or T2VA with no image |
 | **Flamin Galah Image Prompt Builder (Grok)** | Optional `image_1`, optional `image_2`, plus scene directions | xAI Grok API | I2VA from either image, Ref2VA from both, or T2VA with no image |
+| **Flamin Galah Shutdown** | Pass-through trigger; enabled toggle; action; delay | Local (Windows) | Pass-through trigger (optional shutdown/reboot) |
 
 **T2VA** means the pack's text-to-video-with-audio prompt mode. **I2VA** means its image-to-video-with-audio prompt mode. These labels describe prompt text, not generation performed by the nodes.
+
+### Flamin Galah Shutdown
+
+Pass-through node for the end of a workflow (for example after a video save). When **enabled** is on, it issues a Windows `shutdown` or `reboot` command after the given delay. When off, it does nothing and simply passes the trigger through.
+
+- **enabled** — boolean toggle (default `false`)
+- **action** — `shutdown` or `reboot`
+- **delay_seconds** — 10 to 86400 (default 60)
+- Windows only. Requires the process to have permission to run `shutdown`.
+- Appears under **Add Node → System**.
 
 ## Installation
 
@@ -348,6 +359,7 @@ Load Image → Flamin Galah Image Prompt Builder (Grok) → h3_prompt
 | Flamin Galah Prompt Director (Ollama) | `node_prompt_director_ollama.py` |
 | Flamin Galah Image Prompt Builder (Ollama) | `node_image_prompt_builder_ollama.py` |
 | Flamin Galah Image Prompt Builder (Grok) | `node_image_prompt_builder_grok.py` |
+| Flamin Galah Shutdown | `node_shutdown.py` |
 
 `nodes/__init__.py` remains the package initializer and imports these three modules. When updating, replace the complete plugin folder rather than merging old and new module files.
 
@@ -403,9 +415,11 @@ ComfyUI-Flamin-Galah/
 │   ├── __init__.py
 │   ├── node_prompt_director_ollama.py
 │   ├── node_image_prompt_builder_ollama.py
-│   └── node_image_prompt_builder_grok.py
+│   ├── node_image_prompt_builder_grok.py
+│   └── node_shutdown.py
 └── web/
     ├── flamin_galah.js
+    ├── shutdown_toggle.js
     └── flamin-galah-logo.png
 ```
 
