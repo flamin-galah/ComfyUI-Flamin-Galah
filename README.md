@@ -27,6 +27,8 @@ Prompt nodes appear under **Add Node → prompt → Flamin Galah**. The shutdown
 
 ### Flamin Galah Shutdown
 
+![Flamin Galah Shutdown connected after Save Video](docs/shutdown_node.png)
+
 Pass-through node for the end of a workflow (for example after a video save). When **enabled** is on, it issues a Windows `shutdown` or `reboot` command after the given delay. When off, it does nothing and simply passes the trigger through.
 
 - **enabled** — boolean toggle (default `false`)
@@ -411,7 +413,8 @@ ComfyUI-Flamin-Galah/
 │   ├── flamin-galah-logo.png
 │   ├── prompt_director_ollama.png
 │   ├── image_prompt_builder_ollama.png
-│   └── image_prompt_builder_grok.png
+│   ├── image_prompt_builder_grok.png
+│   └── shutdown_node.png
 ├── nodes/
 │   ├── __init__.py
 │   ├── node_prompt_director_ollama.py
