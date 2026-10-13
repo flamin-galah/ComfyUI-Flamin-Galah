@@ -25,19 +25,6 @@ Prompt nodes appear under **Add Node → prompt → Flamin Galah**. The shutdown
 
 **T2VA** means the pack's text-to-video-with-audio prompt mode. **I2VA** means its image-to-video-with-audio prompt mode. These labels describe prompt text, not generation performed by the nodes.
 
-### Flamin Galah Shutdown
-
-![Flamin Galah Shutdown connected after Save Video](docs/shutdown_node.png)
-
-Pass-through node for the end of a workflow (for example after a video save). When **enabled** is on, it issues a Windows `shutdown` or `reboot` command after the given delay. When off, it does nothing and simply passes the trigger through.
-
-- **enabled** — boolean toggle (default `false`)
-- **action** — `shutdown` or `reboot`
-- **delay_seconds** — 10 to 86400 (default 60)
-- Windows only. Requires the process to have permission to run `shutdown`.
-- Appears under **Add Node → System**.
-- To cancel a pending shutdown or reboot, open a Command Prompt and run: `shutdown -a`
-
 ## Installation
 
 ### Install the supplied ZIP
@@ -239,6 +226,23 @@ Uses the configured xAI-compatible API rather than Ollama.
 | `temperature` | Defaults to `0.2`. |
 
 A run makes **two model calls**, or **three** when extra directions are supplied. The original image is attached to the first call; later calls use text derived from the description. API failures raise errors rather than using the Prompt Director's structured fallback.
+
+### Flamin Galah Shutdown
+
+![Flamin Galah Shutdown connected after Save Video](docs/shutdown_node.png)
+
+Pass-through node for the end of a workflow (for example after a video save). When **enabled** is on, it issues a Windows `shutdown` or `reboot` command after the given delay. When off, it does nothing and simply passes the trigger through.
+
+| Input | Purpose |
+| --- | --- |
+| `trigger` | Any input. Passed through unchanged. Used so the node can sit after another node (for example Save Video). |
+| `enabled` | Boolean toggle. Default `false`. When off, the node does nothing. |
+| `action` | `shutdown` or `reboot`. |
+| `delay_seconds` | Delay before the action. 10 to 86400, default 60. |
+
+- Windows only. Requires the process to have permission to run `shutdown`.
+- Appears under **Add Node → System**.
+- To cancel a pending shutdown or reboot, open a Command Prompt and run: `shutdown -a`
 
 ## Prompt structure and examples
 
