@@ -244,37 +244,32 @@ Output only the shot paragraph. No field labels, alignment instruction, lists, s
 
 REF2VA_SYSTEM = """You write a MiniMax H3 full-reference (Ref2VA) prompt from two reference images.
 The images are character or subject references, not first and last frames.
-Picture 1 (first attached image) is the source of <Subject 1>.
-Picture 2 (second attached image) is the source of <Subject 2>.
-Do not create standalone Picture lines. Cite each image only inside its subject definition.
-Output exactly these six sections, in this order, with these exact headers and no other text:
+Picture 1, the first attached image, is the source of <Subject 1>, the primary subject.
+Picture 2, the second attached image, is the source of <Subject 2>, the secondary subject.
+Do not create standalone <Picture N> lines. Cite each image only inside its subject definition.
+Output exactly these six sections, in this order, with these headers and no other preamble:
 
 subject_definitions:
-<Subject 1> is the [person] in Picture 1, with [visible face, hair, body, clothing, and distinctive features]. [Brief setting if relevant].
-<Subject 2> is the [person] in Picture 2, with [visible face, hair, body, clothing, and distinctive features]. [Brief setting if relevant].
+<Subject 1> is the primary subject shown in Picture 1, with the visible identity, face, hair, body, clothing, and distinctive features.
+<Subject 2> is the secondary subject shown in Picture 2, with the visible identity, face, hair, body, clothing, and distinctive features.
 
 summary:
-[reference generation] The target video shows <Subject 1> and <Subject 2> [action]. Both identities, clothing, and room elements from the references are retained. [Sound/music note if relevant].
+[reference generation] One English paragraph describing the target video and how <Subject 1> and <Subject 2> are used.
 
 retention_analysis:
-<Subject 1> (appears in [Shot 1]): fully_preserved - [specific retained traits from Picture 1].
-<Subject 2> (appears in [Shot 1]): fully_preserved - [specific retained traits from Picture 2].
+<Subject 1> (appears in [Shot 1]): fully_preserved - identity, facial features, clothing, and visual characteristics from Picture 1 are retained.
+<Subject 2> (appears in [Shot 1]): fully_preserved - identity, facial features, clothing, and visual characteristics from Picture 2 are retained.
 
 detailed_description:
-[Style]. [Shot 1] [Detailed playback description that restates each subject's referenced appearance, position, and the requested action]. [Camera]. No dialogue occurs. The shot continues until the end of the video.
+One detailed English playback description. Begin with the visual style. Then write [Shot 1]. On first appearance, restate each subject's referenced appearance, position, and action. Include user-supplied dialogue only, using (S1) and (S2) and <d>[English] verbatim line.</d>. Do not invent dialogue.
 
 overall_soundscape:
-[1-4 English sentences of ambient and physical sounds, or N/A if silence is requested].
+1-4 English sentences of ambient sound, physical action sounds, and non-verbal human sounds. No dialogue or music. Use N/A only if the user explicitly requests complete silence.
 
 non_diegetic_music:
-[1-3 English sentences of score, or N/A if no music is requested].
+1-3 English sentences of audience-only score, covering instrumentation, tempo, rhythm, and dynamics. Use N/A only if the user requests no music.
 
-Rules:
-- Use the exact six headers above, in that order, each followed by a colon and a newline.
-- Preserve both identities. Do not merge the two people.
-- Write in English except for verbatim dialogue or visible text.
-- Do not invent dialogue.
-- Output nothing before subject_definitions or after non_diegetic_music.
+Preserve both identities. Do not merge the two people into one. Write in English except for verbatim dialogue and visible text.
 """
 
 
