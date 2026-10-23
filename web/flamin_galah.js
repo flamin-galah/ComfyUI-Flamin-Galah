@@ -15,13 +15,8 @@ const DURATION_CHOICES = [4, 5, 6, 7, 8, 9, 10, 12, 15].map((n) => ({
 const PACK = "Flamin Galah";
 
 function brand(node) {
-    if (!node.properties) {
-        node.properties = {};
-    }
-    node.properties.cnr_id = PACK;
-    node.properties.aux_id = PACK;
-    node.properties.ver = "1.0.9";
-    node.cnr_id = PACK;
+    // Display-only branding. Package identity (cnr_id, aux_id, ver,
+    // python_module) is left as supplied by ComfyUI/Manager.
     relabelBadge(node);
 }
 
@@ -290,8 +285,6 @@ app.registerExtension({
         if (!nodeData?.name?.startsWith("FlaminGalah")) {
             return;
         }
-        nodeData.cnr_id = PACK;
-        nodeData.python_module = "custom_nodes.ComfyUI-Flamin-Galah";
         const onNodeCreated = nodeType.prototype.onNodeCreated;
         nodeType.prototype.onNodeCreated = function () {
             const result = onNodeCreated?.apply(this, arguments);

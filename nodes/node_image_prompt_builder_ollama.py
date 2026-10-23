@@ -43,9 +43,11 @@ Be explicit and specific. Do not invent a different person, outfit, or setting. 
 def _get_ollama_models(base_url="http://localhost:11434", timeout=2.0):
     fallback = [
         "(Ollama not running – start it and refresh)",
+        "gemma4:e4b",
+        "goonsai/qwen2.5-3B-goonsai-nsfw-100k",
         "llava",
         "llava:13b",
-        "qwen2.5-vl",
+        "qwen2.5vl",
         "llama3.2-vision",
         "llama3.2",
         "llama3.1",
@@ -75,7 +77,7 @@ def _get_ollama_models(base_url="http://localhost:11434", timeout=2.0):
             if names:
                 return names
 
-            return ["(no models found – run: ollama pull llava)"]
+            return ["(no models found – run: ollama pull gemma4:e4b)"]
 
     except Exception:
         return fallback
@@ -387,7 +389,7 @@ class FlaminGalahImageDescriber:
             if not names:
                 raise RuntimeError(
                     "No Ollama model selected, and none are installed. "
-                    "Start Ollama and run: ollama pull llava   or   ollama pull qwen2.5vl"
+                    "Start Ollama and run: ollama pull gemma4:e4b   (or: ollama pull qwen2.5vl / llava)"
                 )
             model = names[0]
 
@@ -430,13 +432,19 @@ class FlaminGalahImageDescriber:
                 result = json.loads(raw)
                 message = result.get("message") or {}
                 content = (message.get("content") or "").strip()
-                if not content:
-                    content = (message.get("thinking") or "").strip()
 
+                # Reasoning ("thinking") text is never a final answer, so it is
+                # not used as a fallback.
                 if not content:
+                    hint = (
+                        " The model returned reasoning text only; try a "
+                        "non-reasoning model or one that finishes its answer."
+                        if (message.get("thinking") or "").strip()
+                        else ""
+                    )
                     raise RuntimeError(
-                        f"Ollama model {model} returned empty content. "
-                        "Use a vision model for the image pass (llava, qwen2.5vl, llama3.2-vision)."
+                        f"Ollama model {model} returned empty content.{hint} "
+                        "Use a vision model for the image pass (gemma4:e4b, qwen2.5vl, llava, llama3.2-vision)."
                     )
 
                 return content

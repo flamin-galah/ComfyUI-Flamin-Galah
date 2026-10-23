@@ -70,26 +70,24 @@ There are no additional Python dependencies declared by the pack.
 The **Prompt Director** and **Image Prompt Builder (Ollama)** call Ollama's `/api/chat` endpoint. The default server is `http://localhost:11434`.
 
 1. Install and start [Ollama](https://ollama.com/download).
-2. Pull a text-writing model, for example:
+2. Pull the recommended models:
 
    ```bash
-   ollama pull llama3.2
+   ollama pull gemma4:e4b
+   ollama pull goonsai/qwen2.5-3B-goonsai-nsfw-100k
    ```
 
-3. For image input, also pull a vision-capable model, for example:
+   - **`gemma4:e4b`** is a general-purpose model that also accepts image input, so it can serve as both the **vision model** and a **writer model**. It needs a recent Ollama (v0.20.0 or newer) and roughly 10 GB of VRAM or 16 GB of unified memory.
+   - **`goonsai/qwen2.5-3B-goonsai-nsfw-100k`** is a small (about 6 GB), **text-only** writer model that its publisher describes as built for image and video prompts. Use it for `ollama_model` or `prompt_model`, not for `vision_model`.
 
-   ```bash
-   ollama pull qwen2.5vl
-   ```
-
-   Alternatives include `llava` and `llama3.2-vision`. You only need one suitable vision model, not all three.
+3. If you prefer a different vision model, alternatives include `qwen2.5vl`, `llava`, and `llama3.2-vision`. You only need one vision-capable model. A text-writing alternative is `llama3.2`.
 
 4. Start or restart ComfyUI after the models are available.
-5. Explicitly select a **vision model** for `vision_model` and a **writer model** for `ollama_model` or `prompt_model`.
+5. Explicitly select a **vision model** (for example `gemma4:e4b`) for `vision_model` and a **writer model** (for example `gemma4:e4b` or `goonsai/qwen2.5-3B-goonsai-nsfw-100k`) for `ollama_model` or `prompt_model`.
 
-The correct official Qwen tag is **`qwen2.5vl`**, not `qwen2.5-vl`. See the [Qwen2.5-VL library page](https://ollama.com/library/qwen2.5vl). The [Llama 3.2 library page](https://ollama.com/library/llama3.2) describes the text-only writer example.
+The correct official Qwen vision tag is **`qwen2.5vl`**, not `qwen2.5-vl`. See the [Qwen2.5-VL library page](https://ollama.com/library/qwen2.5vl), the [Gemma 4 library page](https://ollama.com/library/gemma4), and the [goonsai model page](https://ollama.com/goonsai/qwen2.5-3B-goonsai-nsfw-100k).
 
-Model suitability, resource requirements, and response quality depend on the model you select. For adult-themed creative requests, choose an appropriate model and follow its applicable terms; support is not guaranteed by this pack.
+Model suitability, resource requirements, and response quality depend on the model you select. The `goonsai` model is a community fine-tune intended for adult-oriented prompt writing. For adult-themed creative requests, follow each model's applicable terms and your local laws; support is not guaranteed by this pack.
 
 ### Model dropdowns and remote servers
 
@@ -157,7 +155,7 @@ Builds a prompt from scene directions and filmmaker-style controls using Ollama.
 | `extra_details` | Additional texture, atmosphere, depth of field, or scene details. |
 | `ollama_model` | Text-writing model. |
 
-The duration pills offer **4, 5, 6, 7, 8, 9, 10, 12, and 15 seconds**. Verify the final text: current cleanup does not replace a different duration already written by the model.
+The duration pills offer **4, 5, 6, 7, 8, 9, 10, 12, and 15 seconds**. Any duration the model wrote (for example “lasts about 5 seconds”) is replaced with the selected value.
 
 #### Optional inputs
 
@@ -172,7 +170,7 @@ The duration pills offer **4, 5, 6, 7, 8, 9, 10, 12, and 15 seconds**. Verify th
 
 The writer is instructed to preserve the reference image, describe camera motion, separate visuals from audio, and avoid inventing dialogue. These are model instructions, not a guarantee that every response satisfies every rule.
 
-If the writer fails, this node returns a structured text fallback and logs the failure. If image description fails, it currently continues without a reliable image-description anchor. Check the ComfyUI console and review the result before using it downstream.
+If the writer fails, this node returns a structured text fallback and logs the failure. If image description fails, the node stops with an error rather than returning a prompt that never saw the image; select a vision-capable model or disconnect the image to write a text-only prompt.
 
 ### Flamin Galah Image Prompt Builder (Ollama)
 
@@ -382,7 +380,7 @@ This build retains the visible-name and filename updates and aligns the local Im
 
 Existing workflows retain their node references. Saved or manually customized canvas titles may retain older text; edit the title or add a fresh node if you want the new label. For workflows from versions with different widget schemas or output names, back up the workflow and add a fresh node if needed.
 
-The local video header now includes the required `<Picture 1>` marker, source-image style is no longer overridden by the formatter, and video-only writing instructions explicitly anchor frame 0 before continuation. Other implementation issues identified during review are unchanged.
+The local video header now includes the required `<Picture 1>` marker, source-image style is no longer overridden by the formatter, and video-only writing instructions explicitly anchor frame 0 before continuation. The review findings on duration, dialogue tags, reasoning-only responses, vision failure, qwen tag, registry name and frontend metadata are addressed in 1.0.18.
 
 ## Troubleshooting and current limitations
 
@@ -391,13 +389,12 @@ The local video header now includes the required `<Picture 1>` marker, source-im
 | Nodes do not appear | Confirm the folder location, fully restart ComfyUI, and inspect startup logs for import errors. |
 | Old names remain | Reload the frontend. Saved custom titles may remain; edit them or add a fresh node. |
 | Ollama dropdown shows a placeholder | Start Ollama, pull a model, and restart ComfyUI. Discovery currently queries localhost. |
-| Model cannot process an image | Select an installed vision model, such as `qwen2.5vl`, `llava`, or `llama3.2-vision`. Text-only models are not suitable for the vision pass. |
+| Model cannot process an image | Select an installed vision model, such as `gemma4:e4b`, `qwen2.5vl`, `llava`, or `llama3.2-vision`. Text-only models are not suitable for the vision pass. |
 | Cannot reach Ollama | Check `ollama_url`, whether the server is running, and network/firewall settings. |
 | Grok authentication or model error | Check the environment seen by ComfyUI, widget key, trusted endpoint, and model access. |
-| Wrong duration in the returned prompt | Correct the text before use. Current cleanup can retain the model's duration instead of the selected value. |
-| Unexpected dialogue remains | Review the text manually. Cleanup currently removes language-labelled dialogue tags but not every unlabelled tag or natural-language line. |
-| Output contains Markdown or unexpected text | Inspect and clean it before use. Formatting validation is not exhaustive; the local image node can also accept reasoning text if final content is empty. |
-| Image-based director result does not match the still | Check console warnings: the node can continue after a vision failure without an image-description anchor. |
+| Unexpected dialogue remains | Model-written `<d>…</d>` tags are removed from the description and soundscape, but plain-text speech without tags is not detected; review the text. |
+| Output contains Markdown or unexpected text | Inspect and clean it before use. Formatting validation is not exhaustive. |
+| Image-based director stops with a vision error | Select an installed vision-capable model (`vision_model`) or disconnect the image input for text-only prompting. |
 | Local video output has no first-frame line | Install the updated `node_image_prompt_builder_ollama.py`, restart ComfyUI, select Image to Video, and rerun the node. Image to Image intentionally has no header. |
 | Local video output changes an illustration into live-action | Install the first-frame conformance update and rerun. The video formatter does not inject a live-action prefix; also verify the selected models describe and preserve the source style. |
 | Local video soundscape is `N/A` without a silence request | Rerun or correct the generated soundscape. The writer is instructed to reserve `N/A` for explicitly requested complete silence, but the model's semantic choice is not independently validated. |
