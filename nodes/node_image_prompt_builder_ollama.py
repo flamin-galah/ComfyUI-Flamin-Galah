@@ -647,34 +647,62 @@ class FlaminGalahImageDescriber:
         return _format_i2v_output(description, soundscape, music) if mode == "I2V" else description
 
     def _generate_two_images(self, mode, primary, secondary, extra, extra_block, ollama_url, vision_model, prompt_model, temperature):
-        # Existing two-image logic remains unchanged.
-        # (Full implementation preserved from original file.)
-        frames_b64 = [
-            _tensor_to_base64_png(primary),
-            _tensor_to_base64_png(secondary),
-        ]
+        # Describe each image with the vision model, then write with the (text-only) prompt model.
+        # Sending images directly to a non-vision prompt model causes Ollama HTTP 400.
+        desc1 = self._call_ollama(
+            (
+                "Describe this image in rich visual detail. "
+                "Focus on style, lighting, composition, subject appearance, "
+                "pose, clothing, environment, textures and atmosphere. "
+                "Be explicit. Output only the description."
+            ),
+            ollama_url,
+            vision_model,
+            temperature,
+            OLLAMA_VISION_SYSTEM,
+            images_b64=[_tensor_to_base64_png(primary)],
+        )
+        desc2 = self._call_ollama(
+            (
+                "Describe this image in rich visual detail. "
+                "Focus on style, lighting, composition, subject appearance, "
+                "pose, clothing, environment, textures and atmosphere. "
+                "Be explicit. Output only the description."
+            ),
+            ollama_url,
+            vision_model,
+            temperature,
+            OLLAMA_VISION_SYSTEM,
+            images_b64=[_tensor_to_base64_png(secondary)],
+        )
+        desc1 = _normalize_single_image_references(desc1)
+        desc2 = _normalize_single_image_references(desc2)
+
         if mode == "I2I":
             raw = self._call_ollama(
                 (
-                    "The first image is the primary subject. The second image is the secondary subject. "
+                    "The first description is the primary subject. The second is the secondary subject. "
                     "Write a single image-prompt paragraph that uses both. "
                     "Do not merge them into one person.\n\n"
+                    f"Primary subject description:\n{desc1}\n\n"
+                    f"Secondary subject description:\n{desc2}\n\n"
                     f"User directions:\n{extra_block}\n\n"
                     "Output only the paragraph."
                 ),
                 ollama_url,
                 prompt_model,
                 temperature,
-                "You write a plain two-subject image prompt. No field labels or preamble.",
-                images_b64=frames_b64,
+                "You write a plain two-subject image prompt from text descriptions. No field labels or preamble.",
             )
             return _format_i2i_output(raw)
+
         raw = self._call_ollama(
             (
-                "The first image is Picture 1, the primary subject reference. "
-                "The second image is Picture 2, the secondary subject reference. "
-                "Write the six-section H3 Ref2VA prompt. "
+                "Picture 1 is the primary subject reference. Picture 2 is the secondary subject reference. "
+                "Write the six-section H3 Ref2VA prompt from these descriptions. "
                 "Do not use standalone Picture lines.\n\n"
+                f"Picture 1 (primary) description:\n{desc1}\n\n"
+                f"Picture 2 (secondary) description:\n{desc2}\n\n"
                 f"User directions:\n{extra_block}\n\n"
                 "Output only the six sections."
             ),
@@ -682,7 +710,6 @@ class FlaminGalahImageDescriber:
             prompt_model,
             temperature,
             REF2VA_SYSTEM,
-            images_b64=frames_b64,
         )
         return _format_ref2va_output(raw)
 
