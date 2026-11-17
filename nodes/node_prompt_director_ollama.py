@@ -1,21 +1,14 @@
 """
 ComfyUI custom node: Flamin Galah Prompt Director (Ollama)
 Builds structured MiniMax H3 T2VA / I2VA prompts via local Ollama from
-filmmaker-style fields, with an optional Image mode for plain descriptive prompts.
+filmmaker-style fields (no free-form idea box).
 
-Video mode (default):
-  T2VA or I2VA with the three-field structure + soundscape/music.
-
-Image mode:
-  A single rich descriptive paragraph (suitable for image-to-image or text-to-image).
-  Duration, soundscape and music fields are ignored.
-
-Official video format (T2VA):
+Official format (T2VA):
   integrated_multimodal_description: [Shot 1] ...
   overall_soundscape: ...
   non_diegetic_music: ...
 
-Official video format (I2VA):
+Official format (I2VA):
   For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced.
 
   integrated_multimodal_description: [Shot 1] ...
@@ -119,29 +112,10 @@ DIALOGUE RULES:
 """
 
 
-OLLAMA_SYSTEM_PROMPT_IMAGE = """You are an expert prompt writer for image generation.
-Your job is to turn structured creative guidance (and an optional image description) into a single rich, detailed descriptive paragraph suitable for image-to-image or text-to-image models.
-
-Output ONLY one continuous descriptive paragraph. No field labels, no shot markers, no soundscape, no music, no duration statements, no markdown.
-
-STRICT RULES:
-- Write in English except for any supplied dialogue or on-screen text.
-- If an image description is provided, start from that exact appearance, clothing, pose, composition and lighting, then apply the requested changes.
-- Incorporate style, lighting, camera/composition, extra description and extra details.
-- Be specific about body language, fabric, skin, lighting, atmosphere and textures.
-- Put any spoken dialogue inside <d>[Language] exact words</d> tags if dialogue is enabled.
-- Put any visible on-screen text in English double quotes.
-- Keep the tone suitable for adult / NSFW content when the user request is adult.
-- Do not invent dialogue if it is disabled.
-- Do not add any extra commentary or explanation.
-"""
-
-
-OLLAMA_VISION_SYSTEM = """You are a precise visual describer for image-to-video or image generation.
-Describe the supplied image in rich, objective detail suitable as a first-frame anchor or reference.
+OLLAMA_VISION_SYSTEM = """You are a precise visual describer for adult / NSFW image-to-video generation.
+Describe the supplied image in rich, objective detail suitable as a first-frame anchor.
 Include: overall style, lighting, composition, camera angle, subject appearance (body, face, hair, expression), clothing or lack of clothing, pose, body language, environment, key objects, textures (skin, fabric, etc.), and atmosphere.
-Be explicit and specific. Do not invent actions that are not visible. Do not add sound. Output only the description paragraph, nothing else.
-"""
+Be explicit and specific. Do not invent actions that are not visible. Do not add sound. Output only the description paragraph, nothing else."""
 
 
 def _get_ollama_models(base_url="http://localhost:11434", timeout=2.0):
@@ -196,15 +170,17 @@ def _tensor_to_base64_png(image_tensor):
             "They are normally present in a ComfyUI environment."
         )
 
+    # Take first image in batch
     img = image_tensor[0]
 
     if hasattr(img, "cpu"):
         img = img.cpu().numpy()
 
+    # Ensure HWC, float 0-1 → uint8
     if img.dtype != np.uint8:
         img = (np.clip(img, 0.0, 1.0) * 255).astype(np.uint8)
 
-    if img.shape[-1] == 4:
+    if img.shape[-1] == 4:  # RGBA → RGB
         img = img[..., :3]
 
     pil = Image.fromarray(img)
@@ -238,10 +214,6 @@ class FlaminGalahNSFWPromptGenerator:
 
         return {
             "required": {
-
-                "output_mode": (["Video", "Image"], {
-                    "default": "Video"
-                }),
 
                 "extra_description": ("STRING", {
                     "multiline": True,
@@ -404,9 +376,8 @@ class FlaminGalahNSFWPromptGenerator:
 
     DESCRIPTION = (
         "Flamin Galah Prompt Director (Ollama) – "
-        "structured fields → local Ollama → MiniMax H3 video prompt (T2VA/I2VA) "
-        "or a plain image descriptive paragraph. "
-        "Use the output_mode toggle. Connect an image for image-anchored results."
+        "structured fields → local Ollama → MiniMax H3 T2VA or I2VA format. "
+        "Connect an image to enable I2VA (image is described then evolved by your extra_description)."
     )
 
     # ---------------------------------------------------------
@@ -513,7 +484,7 @@ class FlaminGalahNSFWPromptGenerator:
         vision_model,
         temperature,
     ):
-        """Use a vision model to produce a detailed first-frame / reference description."""
+        """Use a vision model to produce a detailed first-frame description."""
         b64 = _tensor_to_base64_png(image_tensor)
 
         user_content = (
@@ -550,12 +521,13 @@ class FlaminGalahNSFWPromptGenerator:
             return ""
 
         language = (dialogue_language or "").strip()
+        # "other" is not a language. Do not relabel the line as English.
         if language and language.lower() != "other":
             return f"<d>[{language}] {dialogue.strip()}</d>"
         return f"<d>{dialogue.strip()}</d>"
 
     # ---------------------------------------------------------
-    # FORMAT CLEANUP (VIDEO)
+    # FORMAT CLEANUP
     # ---------------------------------------------------------
 
     def _force_clean_format(
@@ -574,6 +546,7 @@ class FlaminGalahNSFWPromptGenerator:
 
         text = text.strip()
 
+        # Strip any accidental leading instruction if present so we can re-add it cleanly
         text = re.sub(
             r"^For the target video,.*?\n+",
             "",
@@ -607,6 +580,7 @@ class FlaminGalahNSFWPromptGenerator:
         else:
             description = text
 
+        # Remove accidental field label
         description = re.sub(
             r"^\s*integrated_multimodal_description:\s*",
             "",
@@ -614,7 +588,13 @@ class FlaminGalahNSFWPromptGenerator:
             flags=re.IGNORECASE
         ).strip()
 
+        # Remove any dialogue generated by Ollama.
+        # We insert the exact supplied dialogue ourselves.
         description = _strip_dialogue_tags(description)
+
+        # -----------------------------------------------------
+        # Guarantee [Shot 1]
+        # -----------------------------------------------------
 
         if not re.match(
             r"^\[Shot\s+1\]",
@@ -633,12 +613,17 @@ class FlaminGalahNSFWPromptGenerator:
         duration_clause = f"The shot lasts about {duration} seconds."
         description, replaced = _DURATION_RE.subn(duration_clause, description)
         if replaced:
+            # Keep exactly one duration statement: drop any extra repeats.
             first = description.find(duration_clause) + len(duration_clause)
             description = description[:first] + description[first:].replace(
                 duration_clause, ""
             )
         else:
             description = f"{description.rstrip('. ')}. {duration_clause}"
+
+        # -----------------------------------------------------
+        # Add exact dialogue
+        # -----------------------------------------------------
 
         dialogue_tag = self._make_dialogue_tag(
             include_dialogue,
@@ -661,6 +646,10 @@ class FlaminGalahNSFWPromptGenerator:
                 f"{dialogue_tag}."
             )
 
+        # -----------------------------------------------------
+        # Soundscape
+        # -----------------------------------------------------
+
         final_sound = (
             soundscape.strip()
             if soundscape
@@ -670,6 +659,10 @@ class FlaminGalahNSFWPromptGenerator:
                 or "natural ambient sound matching the scene"
             )
         )
+
+        # -----------------------------------------------------
+        # Music
+        # -----------------------------------------------------
 
         music_text = (
             music.strip()
@@ -713,27 +706,8 @@ class FlaminGalahNSFWPromptGenerator:
 
         return result
 
-    def _clean_image_prompt(self, text, include_dialogue, dialogue_speaker, dialogue, dialogue_language, lora_tags=""):
-        """Simple cleanup for Image mode: one clean paragraph + optional exact dialogue + LoRA."""
-        text = (text or "").strip()
-        text = _strip_dialogue_tags(text)
-        # Remove any accidental field labels or shot markers
-        text = re.sub(r"^\[Shot\s+\d+\].*", "", text, flags=re.IGNORECASE | re.MULTILINE)
-        text = re.sub(r"^(integrated_multimodal_description|overall_soundscape|non_diegetic_music)\s*:.*", "", text, flags=re.IGNORECASE | re.MULTILINE)
-        text = re.sub(r"\s+", " ", text).strip()
-
-        dialogue_tag = self._make_dialogue_tag(include_dialogue, dialogue, dialogue_language)
-        if dialogue_tag:
-            speaker = (dialogue_speaker.strip() if dialogue_speaker and dialogue_speaker.strip() else "the subject")
-            text += f" {speaker.capitalize()} speaks clearly: {dialogue_tag}."
-
-        if lora_tags and lora_tags.strip():
-            text += f"\n\nLoRA tag: {lora_tags.strip()}"
-
-        return text.strip()
-
     # ---------------------------------------------------------
-    # FALLBACK (VIDEO)
+    # FALLBACK
     # ---------------------------------------------------------
 
     def _build_fallback(
@@ -857,47 +831,12 @@ class FlaminGalahNSFWPromptGenerator:
 
         return result
 
-    def _build_image_fallback(
-        self,
-        extra_description,
-        camera,
-        style,
-        lighting,
-        extra_details,
-        include_dialogue,
-        dialogue_speaker,
-        dialogue,
-        dialogue_language,
-        lora_tags="",
-        image_description=None,
-    ):
-        parts = [style, lighting, f"a {camera}"]
-        if image_description:
-            parts.append(f"starting from the reference: {image_description.strip()}")
-        parts.append(extra_description.strip())
-        if extra_details.strip():
-            parts.append(extra_details.strip())
-
-        text = ". ".join(p for p in parts if p).strip()
-        if not text.endswith("."):
-            text += "."
-
-        return self._clean_image_prompt(
-            text,
-            include_dialogue,
-            dialogue_speaker,
-            dialogue,
-            dialogue_language,
-            lora_tags,
-        )
-
     # ---------------------------------------------------------
     # GENERATE
     # ---------------------------------------------------------
 
     def generate(
         self,
-        output_mode,
         extra_description,
         camera,
         style,
@@ -919,8 +858,7 @@ class FlaminGalahNSFWPromptGenerator:
         lora_tags=""
     ):
 
-        is_image_mode = (output_mode or "Video") == "Image"
-        is_i2va = (image is not None) and not is_image_mode
+        is_i2va = image is not None
 
         if vision_model is None or (
             isinstance(vision_model, str)
@@ -930,7 +868,7 @@ class FlaminGalahNSFWPromptGenerator:
 
         image_description = None
 
-        if image is not None:
+        if is_i2va:
             try:
                 image_description = self._describe_image(
                     image,
@@ -943,6 +881,7 @@ class FlaminGalahNSFWPromptGenerator:
                     f"({len(image_description)} chars)."
                 )
             except Exception as e:
+                # image. Disconnect the image input to use text-only (T2VA) mode.
                 raise RuntimeError(
                     f"[Flamin Galah] Could not describe the connected image "
                     f"with vision model '{vision_model}': {e}. "
@@ -956,16 +895,7 @@ class FlaminGalahNSFWPromptGenerator:
 
         lines = []
 
-        if is_image_mode:
-            lines.append("MODE: IMAGE (descriptive paragraph for image generation)")
-            if image_description:
-                lines.append("REFERENCE IMAGE DESCRIPTION (preserve identity, clothing, pose, composition, lighting as the starting point):")
-                lines.append(image_description.strip())
-                lines.append("")
-                lines.append("Apply the following changes and details:")
-            else:
-                lines.append("No reference image. Build the scene from the directions below.")
-        elif is_i2va:
+        if is_i2va:
             lines.append("MODE: I2VA (image-to-video)")
             if image_description:
                 lines.append(
@@ -989,58 +919,91 @@ class FlaminGalahNSFWPromptGenerator:
 
         lines.extend([
             f"Extra description: {extra_description.strip()}",
-            f"Camera / composition: {camera}",
+            f"Camera: {camera}",
             f"Style: {style}",
             f"Lighting: {lighting}",
-        ])
-
-        if not is_image_mode:
-            lines.append(f"Duration: about {duration_seconds} seconds")
-            lines.append(
+            f"Duration: about {duration_seconds} seconds",
+            (
                 f"Soundscape: "
                 f"{soundscape.strip() or 'natural ambient sound'}"
+            ),
+        ])
+
+        if music.strip() and music.strip().upper() != "N/A":
+            lines.append(
+                f"Music: {music.strip()}"
             )
-            if music.strip() and music.strip().upper() != "N/A":
-                lines.append(f"Music: {music.strip()}")
-            else:
-                lines.append("Music: N/A (no non-diegetic score)")
+        else:
+            lines.append(
+                "Music: N/A (no non-diegetic score)"
+            )
 
         if extra_details.strip():
-            lines.append(f"Extra details: {extra_details.strip()}")
+            lines.append(
+                f"Extra details: "
+                f"{extra_details.strip()}"
+            )
 
+        # -----------------------------------------------------
         # Dialogue
+        # -----------------------------------------------------
+
         if include_dialogue and dialogue.strip():
+
             speaker = (
                 dialogue_speaker.strip()
-                if dialogue_speaker and dialogue_speaker.strip()
+                if dialogue_speaker
+                and dialogue_speaker.strip()
                 else "the subject"
             )
+
             language = (dialogue_language or "").strip()
             if not language or language.lower() == "other":
                 language = "unspecified — keep the line exactly as written, do not translate it to English"
 
-            lines.append("DIALOGUE ENABLED.")
-            lines.append(f"Dialogue speaker: {speaker}")
-            lines.append(f"Dialogue language: {language}")
-            if is_image_mode:
-                lines.append("Include the following dialogue verbatim in the paragraph:")
-            else:
-                lines.append("The following dialogue MUST be included verbatim in the integrated_multimodal_description:")
-            lines.append(f"<d>[{language}] {dialogue.strip()}</d>")
+            lines.append(
+                "DIALOGUE ENABLED."
+            )
+
+            lines.append(
+                f"Dialogue speaker: {speaker}"
+            )
+
+            lines.append(
+                f"Dialogue language: {language}"
+            )
+
+            lines.append(
+                "The following dialogue MUST be included "
+                "verbatim in the integrated_multimodal_description:"
+            )
+
+            lines.append(
+                f"<d>[{language}] {dialogue.strip()}</d>"
+            )
+
         else:
-            lines.append("DIALOGUE DISABLED. Do not generate or invent spoken dialogue.")
+
+            lines.append(
+                "DIALOGUE DISABLED. "
+                "Do not generate or invent spoken dialogue."
+            )
+
+        # -----------------------------------------------------
+        # Negative notes
+        # -----------------------------------------------------
 
         if negative_notes.strip():
-            lines.append(f"Avoid: {negative_notes.strip()}")
+            lines.append(
+                f"Avoid: {negative_notes.strip()}"
+            )
 
         user_content = "\n".join(lines)
 
-        if is_image_mode:
-            system_prompt = OLLAMA_SYSTEM_PROMPT_IMAGE
-        elif is_i2va:
-            system_prompt = OLLAMA_SYSTEM_PROMPT_I2VA
-        else:
-            system_prompt = OLLAMA_SYSTEM_PROMPT_T2VA
+        system_prompt = (
+            OLLAMA_SYSTEM_PROMPT_I2VA if is_i2va
+            else OLLAMA_SYSTEM_PROMPT_T2VA
+        )
 
         # -----------------------------------------------------
         # Ollama prompt writer
@@ -1056,28 +1019,18 @@ class FlaminGalahNSFWPromptGenerator:
                 system_prompt,
             )
 
-            if is_image_mode:
-                prompt = self._clean_image_prompt(
-                    raw,
-                    include_dialogue,
-                    dialogue_speaker,
-                    dialogue,
-                    dialogue_language,
-                    lora_tags,
-                )
-            else:
-                prompt = self._force_clean_format(
-                    raw,
-                    soundscape,
-                    music,
-                    lora_tags,
-                    include_dialogue,
-                    dialogue_speaker,
-                    dialogue,
-                    dialogue_language,
-                    is_i2va=is_i2va,
-                    duration_seconds=duration_seconds,
-                )
+            prompt = self._force_clean_format(
+                raw,
+                soundscape,
+                music,
+                lora_tags,
+                include_dialogue,
+                dialogue_speaker,
+                dialogue,
+                dialogue_language,
+                is_i2va=is_i2va,
+                duration_seconds=duration_seconds,
+            )
 
         except Exception as e:
 
@@ -1086,39 +1039,24 @@ class FlaminGalahNSFWPromptGenerator:
                 f"({e}), using structured fallback."
             )
 
-            if is_image_mode:
-                prompt = self._build_image_fallback(
-                    extra_description,
-                    camera,
-                    style,
-                    lighting,
-                    extra_details,
-                    include_dialogue,
-                    dialogue_speaker,
-                    dialogue,
-                    dialogue_language,
-                    lora_tags,
-                    image_description=image_description,
-                )
-            else:
-                prompt = self._build_fallback(
-                    extra_description,
-                    camera,
-                    style,
-                    lighting,
-                    duration_seconds,
-                    include_dialogue,
-                    dialogue_speaker,
-                    dialogue,
-                    dialogue_language,
-                    soundscape,
-                    music,
-                    extra_details,
-                    negative_notes,
-                    lora_tags,
-                    image_description=image_description,
-                    is_i2va=is_i2va,
-                )
+            prompt = self._build_fallback(
+                extra_description,
+                camera,
+                style,
+                lighting,
+                duration_seconds,
+                include_dialogue,
+                dialogue_speaker,
+                dialogue,
+                dialogue_language,
+                soundscape,
+                music,
+                extra_details,
+                negative_notes,
+                lora_tags,
+                image_description=image_description,
+                is_i2va=is_i2va,
+            )
 
         return (prompt,)
 
