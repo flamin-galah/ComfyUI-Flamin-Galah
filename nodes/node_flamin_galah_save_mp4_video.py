@@ -1,18 +1,14 @@
 """Flamin Galah Save MP4 Video
 
-Encode an IMAGE batch (and optional AUDIO) to one H.264 mp4.
-save_mode=save writes to ComfyUI's output/ folder;
-save_mode=preview writes to ComfyUI's temp/ folder (auto-cleared on restart).
-
-Self-contained: no external helper modules required.
+Encode frames (and optional audio) to an H.264 mp4.
+Frontend-driven state arrives via the hidden SaveMP4State input.
 """
 
 import os
 import uuid
 import subprocess
-import tempfile
+import json
 import wave
-import struct
 
 import folder_paths
 
@@ -23,64 +19,59 @@ except Exception:
 
 
 LABEL = "Flamin Galah Save MP4 Video"
-
 _CRF = 19
 _PIX_FMT = "yuv420p"
 
-
-def _next_mp4_counter(folder, prefix):
-    if not os.path.isdir(folder):
-        return 1
-    pat = prefix + "_"
-    max_n = 0
-    for f in os.listdir(folder):
-        if not f.startswith(pat) or not f.endswith(".mp4"):
-            continue
-        middle = f[len(pat):-len(".mp4")]
-        try:
-            n = int(middle)
-        except ValueError:
-            continue
-        if n > max_n:
-            max_n = n
-    return max_n + 1
+DEFAULT_STATE = {
+    "folder": "",
+    "pattern": "Video_%date:yyyy-MM-dd%_%counter%",
+    "format": "mp4",
+    "quality": 75,
+    "saveOnRun": True,
+    "trimToAudio": False,
+    "audioFadeMs": 0,
+    "counterDigits": 3,
+}
 
 
 def _resolve_ffmpeg():
-    """Prefer imageio-ffmpeg, fall back to ffmpeg on PATH."""
     try:
         import imageio_ffmpeg
         return imageio_ffmpeg.get_ffmpeg_exe()
     except Exception:
-        pass
-    return "ffmpeg"
+        return "ffmpeg"
+
+
+def _next_counter(folder, pattern):
+    if not os.path.isdir(folder):
+        return 1
+    import re
+    max_n = 0
+    for f in os.listdir(folder):
+        m = re.search(r"_(\d+)\.mp4$", f)
+        if m:
+            max_n = max(max_n, int(m.group(1)))
+    return max_n + 1
 
 
 def _write_wav_pcm16(path, waveform, sample_rate):
-    """Write a simple 16-bit PCM WAV from a ComfyUI AUDIO waveform tensor."""
     import torch
-    if isinstance(waveform, torch.Tensor):
-        arr = waveform.detach().cpu().numpy()
-    else:
-        arr = waveform
+    arr = waveform.detach().cpu().numpy() if hasattr(waveform, "detach") else waveform
     if arr.ndim == 3:
         arr = arr[0]
-    channels, samples = arr.shape
+    channels = arr.shape[0]
     arr = (arr * 32767.0).clip(-32768, 32767).astype("int16")
     with wave.open(path, "wb") as wf:
         wf.setnchannels(channels)
         wf.setsampwidth(2)
         wf.setframerate(int(sample_rate))
-        interleaved = arr.T.reshape(-1)
-        wf.writeframes(interleaved.tobytes())
+        wf.writeframes(arr.T.reshape(-1).tobytes())
 
 
 class FlaminGalahSaveMP4Video:
     DESCRIPTION = (
-        "Flamin Galah Save MP4 Video - encode a batch of frames to a single H.264 mp4 "
-        "with an in-node preview. Optional audio is muxed as AAC.\n\n"
-        "save_mode=save writes to output/; save_mode=preview writes to temp/ "
-        "(cleared on restart)."
+        "Flamin Galah Save MP4 Video — encode frames to H.264 mp4 with a live "
+        "filename preview, token buttons, folder picker and in-node player."
     )
 
     @classmethod
@@ -89,17 +80,16 @@ class FlaminGalahSaveMP4Video:
             "required": {
                 "video_frames": ("IMAGE",),
                 "fps": ("FLOAT", {"default": 24.0, "min": 1.0, "max": 120.0, "step": 1.0}),
-                "filename_prefix": ("STRING", {"default": "Video"}),
-                "save_mode": (["save", "preview"], {"default": "save"}),
-                "trim_to_audio": ("BOOLEAN", {"default": False}),
             },
             "optional": {
                 "audio": ("AUDIO",),
-                "audio_fade_ms": ("INT", {"default": 0, "min": 0, "max": 2000, "step": 10}),
+                "name": ("STRING", {"forceInput": True}),
             },
             "hidden": {
+                "SaveMP4State": "STRING",
                 "prompt": "PROMPT",
                 "extra_pnginfo": "EXTRA_PNGINFO",
+                "unique_id": "UNIQUE_ID",
             },
         }
 
@@ -108,98 +98,102 @@ class FlaminGalahSaveMP4Video:
     OUTPUT_NODE = True
     CATEGORY = "prompt/Flamin Galah"
 
-    def save(self, video_frames, fps, filename_prefix="Video",
-             save_mode="save", trim_to_audio=False,
-             audio_fade_ms=0, audio=None,
-             prompt=None, extra_pnginfo=None):
+    def save(self, video_frames, fps, audio=None, name=None,
+             SaveMP4State="", prompt=None, extra_pnginfo=None, unique_id=None):
 
         import numpy as np
 
+        state = dict(DEFAULT_STATE)
+        try:
+            data = json.loads(SaveMP4State) if SaveMP4State else {}
+            if isinstance(data, dict):
+                state.update(data)
+        except Exception:
+            pass
+
         frames = video_frames
         if frames is None or frames.shape[0] == 0:
-            raise ValueError(f"{LABEL}: no frames provided")
+            raise ValueError(f"{LABEL}: no frames")
 
         n_frames, H, W, C = frames.shape
         if C != 3:
-            raise ValueError(f"{LABEL}: frames must be RGB (got {C} channels)")
+            raise ValueError(f"{LABEL}: frames must be RGB")
         if H % 2 or W % 2:
-            raise ValueError(f"{LABEL}: width and height must be even for yuv420p (got {W}x{H})")
+            raise ValueError(f"{LABEL}: width/height must be even ({W}x{H})")
 
         fps_int = max(1, int(round(float(fps))))
         ffmpeg_path = _resolve_ffmpeg()
 
-        if save_mode == "preview":
-            out_dir = folder_paths.get_temp_directory()
-            file_type = "temp"
-        else:
+        folder_raw = state.get("folder", "").strip()
+        if not folder_raw:
             out_dir = folder_paths.get_output_directory()
             file_type = "output"
+        else:
+            out_dir = os.path.abspath(folder_raw)
+            file_type = "external"
 
-        full_folder, fname, _, subfolder, _ = folder_paths.get_save_image_path(
-            filename_prefix, out_dir, W, H
-        )
-        os.makedirs(full_folder, exist_ok=True)
-        counter = _next_mp4_counter(full_folder, fname)
-        out_filename = f"{fname}_{counter:05d}.mp4"
-        out_path = os.path.join(full_folder, out_filename)
+        os.makedirs(out_dir, exist_ok=True)
 
-        temp_audio_path = None
+        pattern = state.get("pattern") or DEFAULT_STATE["pattern"]
+        digits = max(1, min(8, int(state.get("counterDigits", 3))))
+        counter = _next_counter(out_dir, pattern)
+        from datetime import datetime
+        now = datetime.now()
+        resolved = pattern
+        resolved = resolved.replace("%date:yyyy-MM-dd%", now.strftime("%Y-%m-%d"))
+        resolved = resolved.replace("%date%", now.strftime("%Y-%m-%d"))
+        resolved = resolved.replace("%width%", str(W))
+        resolved = resolved.replace("%height%", str(H))
+        resolved = resolved.replace("%fps%", str(fps_int))
+        resolved = resolved.replace("%frames%", str(n_frames))
+        resolved = resolved.replace("%duration%", f"{n_frames/fps_int:.1f}".replace(".", "-"))
+        if "%counter%" in resolved:
+            resolved = resolved.replace("%counter%", f"{counter:0{digits}}")
+        if name and "%input%" in resolved:
+            resolved = resolved.replace("%input%", str(name).strip())
+        if not resolved.endswith(".mp4"):
+            resolved += ".mp4"
+        resolved = "".join(c if c.isalnum() or c in "._-" else "_" for c in resolved)
+        out_path = os.path.join(out_dir, resolved)
+        out_filename = os.path.basename(out_path)
+
+        temp_audio = None
         if audio is not None:
             try:
                 wf = audio.get("waveform")
                 sr = audio.get("sample_rate")
                 if wf is not None and getattr(wf, "numel", lambda: 0)() > 0:
-                    temp_audio_path = os.path.join(
-                        folder_paths.get_temp_directory(),
-                        f"flamin_save_mp4_{uuid.uuid4().hex}.wav",
-                    )
-                    _write_wav_pcm16(temp_audio_path, wf, sr)
+                    temp_audio = os.path.join(folder_paths.get_temp_directory(),
+                                              f"flamin_{uuid.uuid4().hex}.wav")
+                    _write_wav_pcm16(temp_audio, wf, sr)
             except Exception as e:
-                print(f"[{LABEL}] audio prep failed ({e}); encoding without audio")
-                temp_audio_path = None
+                print(f"[{LABEL}] audio failed ({e})")
+                temp_audio = None
 
         cmd = [
-            ffmpeg_path, "-y",
-            "-loglevel", "error",
-            "-f", "rawvideo",
-            "-vcodec", "rawvideo",
-            "-pix_fmt", "rgb24",
-            "-s", f"{W}x{H}",
-            "-r", str(fps_int),
-            "-i", "-",
+            ffmpeg_path, "-y", "-loglevel", "error",
+            "-f", "rawvideo", "-vcodec", "rawvideo",
+            "-pix_fmt", "rgb24", "-s", f"{W}x{H}",
+            "-r", str(fps_int), "-i", "-",
         ]
-        if temp_audio_path:
-            cmd += ["-i", temp_audio_path]
-        cmd += [
-            "-c:v", "libx264",
-            "-preset", "medium",
-            "-crf", str(_CRF),
-            "-pix_fmt", _PIX_FMT,
-        ]
-        if temp_audio_path:
+        if temp_audio:
+            cmd += ["-i", temp_audio]
+        cmd += ["-c:v", "libx264", "-preset", "medium", "-crf", str(_CRF), "-pix_fmt", _PIX_FMT]
+        if temp_audio:
             cmd += ["-c:a", "aac", "-b:a", "192k"]
-            if audio_fade_ms and int(audio_fade_ms) > 0:
-                fade = int(audio_fade_ms) / 1000.0
-                cmd += ["-af", f"afade=t=in:st=0:d={fade}"]
-            if trim_to_audio:
+            if state.get("trimToAudio"):
                 cmd += ["-shortest"]
         cmd += [out_path]
 
         raw = (frames.cpu().numpy() * 255).clip(0, 255).astype(np.uint8).tobytes()
-
         try:
-            proc = subprocess.run(
-                cmd,
-                input=raw,
-                capture_output=True,
-            )
+            proc = subprocess.run(cmd, input=raw, capture_output=True)
             if proc.returncode != 0:
-                err = proc.stderr.decode("utf-8", errors="replace")
-                raise RuntimeError(f"{LABEL}: ffmpeg failed:\n{err}")
+                raise RuntimeError(proc.stderr.decode("utf-8", errors="replace"))
         finally:
-            if temp_audio_path and os.path.exists(temp_audio_path):
+            if temp_audio and os.path.exists(temp_audio):
                 try:
-                    os.remove(temp_audio_path)
+                    os.remove(temp_audio)
                 except OSError:
                     pass
 
@@ -207,17 +201,17 @@ class FlaminGalahSaveMP4Video:
 
         entry = {
             "filename": out_filename,
-            "subfolder": subfolder,
+            "subfolder": "",
             "type": file_type,
             "format": "video/mp4",
+            "path": out_path,
         }
-        return {"ui": {"images": [entry]}}
+        return {"ui": {"images": [entry], "flamin_save_mp4": [entry]}}
 
 
 NODE_CLASS_MAPPINGS = {
     "FlaminGalahSaveMP4Video": FlaminGalahSaveMP4Video,
 }
-
 NODE_DISPLAY_NAME_MAPPINGS = {
     "FlaminGalahSaveMP4Video": "Flamin Galah Save MP4 Video",
 }
