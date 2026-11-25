@@ -70,20 +70,27 @@ There are no additional Python dependencies declared by the pack.
 The **Prompt Director** and **Image Prompt Builder (Ollama)** call Ollama's `/api/chat` endpoint. The default server is `http://localhost:11434`.
 
 1. Install and start [Ollama](https://ollama.com/download).
-2. Pull the recommended models:
+2. Pull the ideal model for both vision and writing:
+
+   ```bash
+   ollama pull s1gnature/gemma4-uncensored-mtp:e4b-q4_k_m
+   ```
+
+   - **`s1gnature/gemma4-uncensored-mtp:e4b-q4_k_m`** is the recommended ideal model. It is uncensored, accepts image input (so it works as both the **vision model** and the **writer model**), and is a strong fit for adult-oriented prompt writing. It needs a recent Ollama and roughly 10 GB of VRAM or 16 GB of unified memory.
+
+3. Optional alternatives if you prefer other models:
 
    ```bash
    ollama pull gemma4:e4b
    ollama pull goonsai/qwen2.5-3B-goonsai-nsfw-100k
    ```
 
-   - **`gemma4:e4b`** is a general-purpose model that also accepts image input, so it can serve as both the **vision model** and a **writer model**. It needs a recent Ollama (v0.20.0 or newer) and roughly 10 GB of VRAM or 16 GB of unified memory.
-   - **`goonsai/qwen2.5-3B-goonsai-nsfw-100k`** is a small (about 6 GB), **text-only** writer model that its publisher describes as built for image and video prompts. Use it for `ollama_model` or `prompt_model`, not for `vision_model`.
-
-3. If you prefer a different vision model, alternatives include `qwen2.5vl`, `llava`, and `llama3.2-vision`. You only need one vision-capable model. A text-writing alternative is `llama3.2`.
+   - **`gemma4:e4b`** is the official general-purpose model that also accepts image input.
+   - **`goonsai/qwen2.5-3B-goonsai-nsfw-100k`** is a small (about 6 GB), **text-only** writer model. Use it for `ollama_model` or `prompt_model`, not for `vision_model`.
+   - Other vision alternatives include `qwen2.5vl`, `llava`, and `llama3.2-vision`. A text-writing alternative is `llama3.2`.
 
 4. Start or restart ComfyUI after the models are available.
-5. Explicitly select a **vision model** (for example `gemma4:e4b`) for `vision_model` and a **writer model** (for example `gemma4:e4b` or `goonsai/qwen2.5-3B-goonsai-nsfw-100k`) for `ollama_model` or `prompt_model`.
+5. Explicitly select **`s1gnature/gemma4-uncensored-mtp:e4b-q4_k_m`** (or another vision-capable model) for both `vision_model` and the writer (`ollama_model` / `prompt_model`).
 
 The correct official Qwen vision tag is **`qwen2.5vl`**, not `qwen2.5-vl`. See the [Qwen2.5-VL library page](https://ollama.com/library/qwen2.5vl), the [Gemma 4 library page](https://ollama.com/library/gemma4), and the [goonsai model page](https://ollama.com/goonsai/qwen2.5-3B-goonsai-nsfw-100k).
 
