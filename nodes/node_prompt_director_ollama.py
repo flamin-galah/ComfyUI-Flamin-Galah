@@ -121,6 +121,7 @@ Be explicit and specific. Do not invent actions that are not visible. Do not add
 def _get_ollama_models(base_url="http://localhost:11434", timeout=2.0):
     fallback = [
         "(Ollama not running – start it and refresh)",
+        "s1gnature/gemma4-uncensored-mtp:e4b-q4_k_m",
         "gemma4:e4b",
         "goonsai/qwen2.5-3B-goonsai-nsfw-100k",
         "llama3.2",
@@ -156,7 +157,7 @@ def _get_ollama_models(base_url="http://localhost:11434", timeout=2.0):
             if names:
                 return names
 
-            return ["(no models found – run: ollama pull gemma4:e4b)"]
+            return ["(no models found – run: ollama pull s1gnature/gemma4-uncensored-mtp:e4b-q4_k_m)"]
 
     except Exception:
         return fallback
@@ -400,7 +401,7 @@ class FlaminGalahNSFWPromptGenerator:
         ):
             raise RuntimeError(
                 "No valid Ollama model selected. Start Ollama, "
-                "pull a model (e.g. ollama pull gemma4:e4b), "
+                "pull a model (e.g. ollama pull s1gnature/gemma4-uncensored-mtp:e4b-q4_k_m), "
                 "then restart ComfyUI."
             )
 
