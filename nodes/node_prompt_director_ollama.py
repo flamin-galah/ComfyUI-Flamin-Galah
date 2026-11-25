@@ -220,10 +220,9 @@ class FlaminGalahNSFWPromptGenerator:
                     "multiline": True,
                     "rows": 6,
                     "default": (
-                        "A woman, slim body, huge firm breasts, "
-                        "sitting on a chair in an office, "
-                        "legs open wide, she looks directly at the "
-                        "camera with a seductive expression"
+                        "A woman sitting at a desk in a modern office, "
+                        "looking toward the camera with a calm expression, "
+                        "soft natural light from a nearby window"
                     )
                 }),
 
